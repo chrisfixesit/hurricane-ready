@@ -4,8 +4,11 @@ tone_instructions: "Be concise. People act on these alerts: prioritise threat-le
 
 reviews:
   profile: assertive
-  # Request changes when there are actionable findings; approve once resolved
-  request_changes_workflow: true
+  # Request changes for blocking findings; approve once they're resolved
+  auto_approvals:
+    enabled: true
+    # Authors can't wave findings through with @coderabbitai approve/resolve
+    allow_author_approval: false
   high_level_summary: true
   poem: false
   review_status: true
@@ -57,8 +60,9 @@ reviews:
         reporting ALL CLEAR.
     - path: "web/**"
       instructions: >
-        After changing index.html, app.js or sw.js, the CACHE version in web/sw.js
-        must be bumped (CloudFront invalidation is manual). Check accessibility and
+        After changing any file in the SHELL list in web/sw.js (index.html, app.js,
+        the manifest, icons) or sw.js itself, the CACHE version must be bumped;
+        CloudFront invalidation is manual. Check accessibility and
         plain language for a public audience.
     - path: "infra/**/*.tf"
       instructions: >
