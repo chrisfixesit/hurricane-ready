@@ -3,7 +3,7 @@
 // bump, the activate handler below keeps the old cache and viewers see
 // stale shell HTML until they clear storage. The matching client flow in
 // index.html shows an "Update available" toast when a new SW is waiting.
-const CACHE = "hr-cache-v4";
+const CACHE = "hr-cache-v5";
 const SHELL = [
   "/",
   "/index.html",

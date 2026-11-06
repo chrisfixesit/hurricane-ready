@@ -73,6 +73,10 @@ export const config = {
     region: process.env.AWS_REGION ?? "us-east-1",
   },
 
+  // Google Maps Platform Weather API (optional). Adds hourly rain and
+  // thunderstorm chances to the Rain & wind panel; Open-Meteo without it.
+  googleWeatherKey: process.env.GOOGLE_WEATHER_API_KEY ?? "",
+
   // Alert channels (all optional)
   alerts: {
     emails: list(process.env.ALERT_EMAILS),

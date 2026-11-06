@@ -311,7 +311,7 @@ async function tick() {
     // beyond CI's polling budget.
     const [weather, outlook, tropical, civilAlert, waves] = await Promise.all([
       config.replay ? Promise.resolve(null) : fetchCurrentWeather(config.island),
-      config.replay ? Promise.resolve(null) : fetchOutlook(config.island),
+      config.replay ? Promise.resolve(null) : fetchOutlook(config.island, { googleKey: config.googleWeatherKey }),
       config.replay ? Promise.resolve(null) : fetchTropicalOutlook(),
       config.replay ? Promise.resolve(null) : fetchCivilAlerts(),
       config.replay ? Promise.resolve(null) : fetchTropicalWaves(config.island.lon),

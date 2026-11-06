@@ -327,6 +327,11 @@
     .hr .ico { font-size: 1.15rem; margin: 0.2rem 0; }
     .hr .r { font-size: 0.74rem; color: var(--accent); }
     .hr .w { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; }
+    .hr .th { font-size: 0.7rem; color: var(--muted); }
+    /* Google Maps Platform attribution: sans-serif 400, 12px+, white or
+       #5E5E5E only, never translated or wrapped (their policy, not ours). */
+    .attribution { font: 400 12px Roboto, system-ui, sans-serif; color: #fff; white-space: nowrap; padding: 0.4rem 1.1rem 0.8rem; margin: 0; }
+    :root[data-theme="light"] .attribution { color: #5E5E5E; }
 
     /* UV badge */
     .uv { display: inline-block; border-radius: 999px; padding: 0.1rem 0.55rem; font-size: 0.78rem; font-weight: 700; }
@@ -571,8 +576,9 @@
         <summary><span class="sum-t"><span class="ico" data-icon="cloud-rain"></span> Rain &amp; wind — next 24 hours</span><span class="chev" aria-hidden="true">▾</span></summary>
         <p class="summary" id="rainwind-summary">Loading outlook…</p>
         <p class="flood-note" id="flood-note" role="status" aria-live="polite" hidden></p>
-        <p class="strip-key">Hour by hour — <b>💧 chance of rain</b> and <b>wind speed</b> (scroll for all 24 hours):</p>
+        <p class="strip-key">Hour by hour — <b>💧 chance of rain</b>, <b>⚡ chance of thunderstorms</b> (when likely) and <b>wind speed</b> (scroll for all 24 hours):</p>
         <div class="hours" id="hours" tabindex="0" role="group" aria-label="Hourly forecast for the next 24 hours — scroll sideways"></div>
+        <p class="attribution" id="rain-attribution" translate="no" hidden>Source: Includes weather data from Google.</p>
       </details>
 
       <details class="card" id="todo" data-page="home" open>
