@@ -9,6 +9,8 @@ reviews:
     enabled: true
     # Authors can't wave findings through with @coderabbitai approve/resolve
     allow_author_approval: false
+    # Riskier PRs (see merge_risk_instructions) need a human approval
+    max_merge_risk: moderate
     # Lockfiles are excluded from review below, so a dependency-only change
     # must never be auto-approved; it needs a human look.
     overrides:
@@ -16,6 +18,13 @@ reviews:
           - "**/package-lock.json"
           - "**/.terraform.lock.hcl"
         enabled: false
+  merge_risk_instructions: >
+    Critical: threat level logic in src/threat.mjs, or anything that could
+    under-report a threat. High: how briefing.mjs handles the level, alert
+    delivery (notify, push, unsubscribe), url-safety, WAF, TLS or IAM in infra,
+    replacing the ECS service or CloudFront distribution, and removing CI gates.
+    Moderate: feed parsing, sw.js and the web shell, the Dockerfile. Low: copy,
+    docs and tests that only add coverage.
   high_level_summary: true
   poem: false
   review_status: true
