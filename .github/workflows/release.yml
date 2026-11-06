@@ -61,10 +61,14 @@ jobs:
 
       - name: Redeploy ECS service
         if: vars.AWS_DEPLOY_ROLE_ARN != '' && vars.ECS_CLUSTER != '' && vars.ECS_SERVICE != ''
+        # --task-definition takes the family name, so each release also picks up
+        # the latest revision tofu registered (the service ignores
+        # task_definition drift, so nothing else would switch it).
         run: |
           aws ecs update-service \
             --cluster "${{ vars.ECS_CLUSTER }}" \
             --service "${{ vars.ECS_SERVICE }}" \
+            --task-definition hurricane-ready \
             --force-new-deployment \
             --region "$AWS_REGION"
           aws ecs wait services-stable \
