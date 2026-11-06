@@ -19,6 +19,12 @@ reviews:
           - "**/package-lock.json"
           - "**/.terraform.lock.hcl"
         enabled: false
+      # The risk rating is a judgement, so a small change here could still
+      # rate low; the threat level and how it's briefed always need a human.
+      - paths:
+          - "src/threat.mjs"
+          - "src/briefing.mjs"
+        enabled: false
   merge_risk_instructions: >
     Critical: threat level logic in src/threat.mjs, or anything that could
     under-report a threat. High: how briefing.mjs handles the level, alert
