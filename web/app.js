@@ -512,11 +512,13 @@
     function renderRainWind(o, w) {
       const wrap = document.getElementById("hours");
       const sum = document.getElementById("rainwind-summary");
-      if (!o || !o.hourly || !o.hourly.length) { sum.textContent = "Hourly outlook unavailable right now."; wrap.innerHTML = ""; return; }
+      if (!o || !o.hourly || !o.hourly.length) { sum.textContent = "Hourly outlook unavailable right now."; wrap.innerHTML = ""; document.getElementById("rain-attribution").hidden = true; return; }
       const h = o.hourly;
       wrap.innerHTML = h.map(x => `
         <div class="hr"><div class="t">${hourLabel(x.time)}</div><div class="ico" aria-hidden="true">${icon(x.code)}</div>
-          <div class="r" title="Chance of rain">💧 ${x.rainProb ?? 0}%</div><div class="w">${fromKmh(x.windKmh)} ${wUnit()}</div></div>`).join("");
+          <div class="r" title="Chance of rain">💧 ${x.rainProb ?? 0}%</div>${(x.thunderProb ?? 0) >= 30 ? `<div class="th" title="Chance of thunderstorms">⚡ ${x.thunderProb}%</div>` : ""}<div class="w">${fromKmh(x.windKmh)} ${wUnit()}</div></div>`).join("");
+      // Google's chances require attribution wherever they appear.
+      document.getElementById("rain-attribution").hidden = !(o.sources && o.sources.rain === "google");
       let peak = h[0];
       for (const x of h) if ((x.rainProb ?? 0) > (peak.rainProb ?? 0)) peak = x;
       const winds = h.map(x => x.windKmh);
@@ -525,6 +527,9 @@
       let rainText;
       if ((peak.rainProb ?? 0) < 30) rainText = "Little to no rain expected over the next 24 hours.";
       else rainText = `Showers most likely around ${hourLabel(peak.time)} (${peak.rainProb}% chance).`;
+      let thunder = h[0];
+      for (const x of h) if ((x.thunderProb ?? 0) > (thunder.thunderProb ?? 0)) thunder = x;
+      if ((thunder.thunderProb ?? 0) >= 40) rainText += ` Thunderstorms possible around ${hourLabel(thunder.time)} (${thunder.thunderProb}% chance).`;
       sum.innerHTML = `<span class="lead">${rainText}</span> Winds ${fromKmh(wlo)}–${fromKmh(whi)} ${wUnit()}${dir}.`;
 
       // Flash-flood watch from next-24h rainfall total + peak hourly intensity.

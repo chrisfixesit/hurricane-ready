@@ -67,6 +67,29 @@ resource "aws_iam_role_policy_attachment" "exec_managed" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# Runtime secrets. The parameter VALUES live only in SSM (created out of band
+# with `aws ssm put-parameter`), never in tofu state — referencing them by ARN
+# rather than through a data source keeps it that way. Uses the default
+# aws/ssm KMS key, so no kms:Decrypt grant is needed.
+locals {
+  google_weather_param_arn = "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/hurricane-ready/google-weather-api-key"
+}
+
+data "aws_caller_identity" "current" {}
+
+resource "aws_iam_role_policy" "exec_secrets" {
+  name = "read-app-secrets"
+  role = aws_iam_role.exec.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "ssm:GetParameters"
+      Resource = local.google_weather_param_arn
+    }]
+  })
+}
+
 # Runtime identity of the container. Empty for now: DISABLE_AI=1 means no
 # Bedrock/SES/SNS calls. When you flip DISABLE_AI=0 add an aws_iam_role_policy
 # here granting bedrock:InvokeModel (and ses:SendEmail / sns:Publish for alerts).
@@ -209,6 +232,9 @@ resource "aws_ecs_task_definition" "app" {
       { name = "REPLAY", value = "0" },
       { name = "DISABLE_AI", value = "1" },
       { name = "POLL_MINUTES", value = "15" }
+    ]
+    secrets = [
+      { name = "GOOGLE_WEATHER_API_KEY", valueFrom = local.google_weather_param_arn }
     ]
     logConfiguration = {
       logDriver = "awslogs"

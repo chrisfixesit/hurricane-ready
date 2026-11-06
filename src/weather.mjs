@@ -14,6 +14,8 @@ const WMO = {
   95: "Thunderstorm", 96: "Thunderstorm with hail", 99: "Severe thunderstorm",
 };
 
+import { fetchGoogleHourly, mergeHourly } from "./google-weather.mjs";
+
 const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
 const compass = (deg) => COMPASS[Math.round(((deg % 360) / 22.5)) % 16];
 
@@ -100,8 +102,12 @@ export async function fetchCurrentWeather(island) {
  * All from the free Open-Meteo API (no key). Wind is returned in km/h for a
  * general audience (the storm panels use knots). Returns null on failure so
  * the dashboard simply hides the everyday sections rather than breaking.
+ *
+ * With `googleKey`, the hourly rain and thunderstorm chances come from Google
+ * (see google-weather.mjs); `sources.rain` says which one the strip shows so
+ * the page can attribute it.
  */
-export async function fetchOutlook(island) {
+export async function fetchOutlook(island, { googleKey = "" } = {}) {
   const base = `latitude=${island.lat}&longitude=${island.lon}&timezone=auto`;
   const forecastUrl =
     `https://api.open-meteo.com/v1/forecast?${base}&forecast_days=7` +
@@ -127,10 +133,11 @@ export async function fetchOutlook(island) {
     );
 
   try {
-    const [fc, marineRes, airRes] = await Promise.allSettled([
+    const [fc, marineRes, airRes, googleRes] = await Promise.allSettled([
       fetchJson(forecastUrl),
       fetchJson(marineUrl),
       fetchJson(airUrl),
+      fetchGoogleHourly(island, googleKey),
     ]);
     if (fc.status !== "fulfilled") throw new Error("forecast unavailable");
     const f = fc.value;
@@ -159,9 +166,9 @@ export async function fetchOutlook(island) {
     // First hour whose end is still ahead of now == the hour we're currently in.
     let start = times.findIndex((t) => toUtcMs(t) + 3600000 > now);
     if (start < 0) start = 0;
-    const hourly = [];
+    const omHourly = [];
     for (let i = start; i < Math.min(start + 24, times.length); i++) {
-      hourly.push({
+      omHourly.push({
         time: times[i],
         rainProb: f.hourly.precipitation_probability[i] ?? null,
         precipMm: f.hourly.precipitation[i] ?? 0,
@@ -171,6 +178,12 @@ export async function fetchOutlook(island) {
         uv: f.hourly.uv_index[i] != null ? round1(f.hourly.uv_index[i]) : null,
       });
     }
+
+    const { hourly, rainSource } = mergeHourly(
+      omHourly,
+      toUtcMs,
+      googleRes.status === "fulfilled" ? googleRes.value : null
+    );
 
     let marine = null;
     let tide = null;
@@ -209,7 +222,11 @@ export async function fetchOutlook(island) {
       moonIllumination: moon.illumination,
     };
 
-    return { generatedAt: new Date().toISOString(), daily, hourly, marine, tide, airQuality, astro };
+    return {
+      generatedAt: new Date().toISOString(),
+      daily, hourly, marine, tide, airQuality, astro,
+      sources: { rain: rainSource },
+    };
   } catch (err) {
     console.warn(`Outlook unavailable (${err.message})`);
     return null;
