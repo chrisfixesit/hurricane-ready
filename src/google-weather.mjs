@@ -15,17 +15,27 @@
  */
 const URL_BASE = "https://weather.googleapis.com/v1/forecast/hours:lookup";
 const TTL_MS = 60 * 60_000;
+// After a failure, skip Google for a while so a slow or down API can't add
+// its 8s timeout to every 15-minute poll.
+const BACKOFF_MS = 10 * 60_000;
 
 let cache = null; // { at, key, byHour }
+let failedAt = null;
 
 export function _resetGoogleCache() {
   cache = null;
+  failedAt = null;
 }
+
+// Google documents these as integer percentages; anything else is treated as
+// missing so Open-Meteo's value stands.
+const pct = (v) => (Number.isInteger(v) && v >= 0 && v <= 100 ? v : null);
 
 export async function fetchGoogleHourly(island, apiKey, { fetchImpl = fetch, now = Date.now } = {}) {
   if (!apiKey) return null;
   const cacheKey = `${island.lat},${island.lon}`;
   if (cache && cache.key === cacheKey && now() - cache.at < TTL_MS) return cache.byHour;
+  if (failedAt != null && now() - failedAt < BACKOFF_MS) return null;
 
   const url =
     `${URL_BASE}?location.latitude=${island.lat}&location.longitude=${island.lon}` +
@@ -44,14 +54,16 @@ export async function fetchGoogleHourly(island, apiKey, { fetchImpl = fetch, now
       const start = Date.parse(h.interval?.startTime);
       if (!Number.isFinite(start)) continue;
       byHour.set(start, {
-        rainProb: h.precipitation?.probability?.percent ?? null,
-        thunderProb: h.thunderstormProbability ?? null,
+        rainProb: pct(h.precipitation?.probability?.percent),
+        thunderProb: pct(h.thunderstormProbability),
       });
     }
     if (!byHour.size) throw new Error("no forecast hours");
     cache = { at: now(), key: cacheKey, byHour };
+    failedAt = null;
     return byHour;
   } catch (err) {
+    failedAt = now();
     console.warn(`Google weather unavailable (${err.message})`);
     return null;
   }

@@ -107,3 +107,96 @@ test("merge: no Google data → unchanged values, source open-meteo", () => {
   assert.equal(hourly[0].rainProb, 5);
   assert.equal(hourly[0].thunderProb, null);
 });
+
+test("backs off for 10 minutes after a failure, then retries", async () => {
+  _resetGoogleCache();
+  let calls = 0;
+  let fail = true;
+  const f = async () => {
+    calls++;
+    if (fail) throw new Error("timeout");
+    return { ok: true, status: 200, json: async () => googleBody };
+  };
+  let now = 5_000_000;
+  const opts = { fetchImpl: f, now: () => now };
+  assert.equal(await fetchGoogleHourly(island, "k", opts), null);
+  now += 9 * 60_000;
+  assert.equal(await fetchGoogleHourly(island, "k", opts), null);
+  assert.equal(calls, 1, "no retry inside the backoff window");
+  fail = false;
+  now += 2 * 60_000;
+  assert.ok(await fetchGoogleHourly(island, "k", opts));
+  assert.equal(calls, 2);
+});
+
+test("out-of-contract probabilities are treated as missing", async () => {
+  _resetGoogleCache();
+  const body = { forecastHours: [
+    hour("2026-11-06T16:00:00Z", 150, -3),
+    hour("2026-11-06T17:00:00Z", 40.5, "70"),
+  ] };
+  const g = await fetchGoogleHourly(island, "k", { fetchImpl: okFetch(body) });
+  assert.deepEqual(g.get(Date.parse("2026-11-06T16:00:00Z")), { rainProb: null, thunderProb: null });
+  assert.deepEqual(g.get(Date.parse("2026-11-06T17:00:00Z")), { rainProb: null, thunderProb: null });
+  // and the merge keeps Open-Meteo's value for those hours
+  const { hourly, rainSource } = mergeHourly(omHours, toUtcMs, g);
+  assert.equal(hourly[0].rainProb, 5);
+  assert.equal(rainSource, "open-meteo");
+});
+
+// ---- through fetchOutlook, with Open-Meteo and Google both stubbed ----
+
+import { fetchOutlook } from "../src/weather.mjs";
+
+function stubFetch({ googleOk }) {
+  // Build an Open-Meteo forecast whose hourly series starts at the current
+  // UTC hour, so the strip and Google's hours line up the way they do live.
+  const start = Math.floor(Date.now() / 3600_000) * 3600_000;
+  const iso = (ms) => new Date(ms).toISOString().slice(0, 13) + ":00"; // naive, offset 0
+  const times = Array.from({ length: 24 }, (_, i) => iso(start + i * 3600_000));
+  const forecast = {
+    utc_offset_seconds: 0,
+    daily: { time: ["2026-11-06"], weather_code: [80], temperature_2m_max: [30], temperature_2m_min: [25],
+      precipitation_probability_max: [20], wind_speed_10m_max: [20], uv_index_max: [9],
+      sunrise: ["x"], sunset: ["y"], daylight_duration: [43000] },
+    hourly: { time: times, precipitation_probability: times.map(() => 5), precipitation: times.map(() => 1),
+      wind_speed_10m: times.map(() => 20), wind_gusts_10m: times.map(() => 30),
+      weather_code: times.map(() => 80), uv_index: times.map(() => 1) },
+  };
+  const google = { forecastHours: [hour(new Date(start).toISOString(), 60, 45)] };
+  return async (url) => {
+    const u = String(url);
+    if (u.includes("weather.googleapis.com")) {
+      if (!googleOk) throw new Error("down");
+      return { ok: true, status: 200, json: async () => google };
+    }
+    if (u.includes("api.open-meteo.com")) return { ok: true, status: 200, json: async () => forecast };
+    return { ok: false, status: 503, json: async () => ({}) }; // marine/air: not under test
+  };
+}
+
+async function withFetch(fn, impl) {
+  const orig = globalThis.fetch;
+  const warn = console.warn;
+  globalThis.fetch = impl;
+  console.warn = () => {};
+  try { return await fn(); } finally { globalThis.fetch = orig; console.warn = warn; }
+}
+
+test("fetchOutlook: Google data overlays the first hour and is attributed", async () => {
+  _resetGoogleCache();
+  const o = await withFetch(() => fetchOutlook(island, { googleKey: "k" }), stubFetch({ googleOk: true }));
+  assert.equal(o.sources.rain, "google");
+  assert.equal(o.hourly[0].rainProb, 60);
+  assert.equal(o.hourly[0].thunderProb, 45);
+  assert.equal(o.hourly[0].precipMm, 1, "mm stays Open-Meteo");
+  assert.equal(o.hourly[1].rainProb, 5);
+});
+
+test("fetchOutlook: Google down → Open-Meteo values, open-meteo source", async () => {
+  _resetGoogleCache();
+  const o = await withFetch(() => fetchOutlook(island, { googleKey: "k" }), stubFetch({ googleOk: false }));
+  assert.equal(o.sources.rain, "open-meteo");
+  assert.equal(o.hourly[0].rainProb, 5);
+  assert.equal(o.hourly[0].thunderProb, null);
+});
