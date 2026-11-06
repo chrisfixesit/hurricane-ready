@@ -103,87 +103,15 @@ data "aws_iam_openid_connect_provider" "github" {
   url   = "https://token.actions.githubusercontent.com"
 }
 
-locals {
-  oidc_arn = var.create_oidc_provider ? aws_iam_openid_connect_provider.github[0].arn : data.aws_iam_openid_connect_provider.github[0].arn
-}
-
-resource "aws_iam_role" "deploy" {
-  name = "hurricane-ready-github-deploy"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Federated = local.oidc_arn }
-      Action    = "sts:AssumeRoleWithWebIdentity"
-      Condition = {
-        # StringEquals on every key (#32): the prior `StringLike` clause had
-        # no wildcards but the operator was wrong — any future edit that
-        # introduced `*` would silently broaden trust (e.g. `:refs/heads/*`
-        # would also match `:refs/heads/main-evil` and any other repo whose
-        # `:sub` matches the same wildcard prefix). StringEquals locks the
-        # principal to the exact repo + branch.
-        StringEquals = {
-          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/main"
-        }
-      }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy" "deploy" {
-  name = "deploy"
-  role = aws_iam_role.deploy.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid      = "EcrAuth"
-        Effect   = "Allow"
-        Action   = ["ecr:GetAuthorizationToken"]
-        Resource = "*"
-      },
-      {
-        Sid    = "EcrPush"
-        Effect = "Allow"
-        Action = [
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:CompleteLayerUpload",
-          "ecr:InitiateLayerUpload",
-          "ecr:PutImage",
-          "ecr:UploadLayerPart",
-          "ecr:BatchGetImage",
-          "ecr:GetDownloadUrlForLayer",
-        ]
-        Resource = aws_ecr_repository.app.arn
-      },
-      {
-        # Scope ECS mutations to the specific service ARN (#32). The prior
-        # `Resource = "*"` with a tag condition was a soft boundary: any
-        # actor able to set `project=hurricane-ready` tag on another service
-        # would also be reachable. Naming the ARN removes the tag-based
-        # blast radius entirely. The tag condition is kept as belt-and-
-        # suspenders.
-        Sid    = "EcsRedeploy"
-        Effect = "Allow"
-        Action = [
-          "ecs:UpdateService",
-          "ecs:DescribeServices",
-        ]
-        Resource = aws_ecs_service.app.id
-        Condition = {
-          StringEquals = { "aws:ResourceTag/project" = "hurricane-ready" }
-        }
-      },
-    ]
-  })
-}
+# The deploy role (hurricane-ready-github-deploy) and its policy moved to the central infra repo
+# chrisfixesit/tofu-or-not-tofu (accounts/sandbox/github-deploy) on 2026-11-06.
+# Change it there, not here.
 
 # ---------- Outputs (become GitHub repo variables) ----------
 
 output "github_deploy_role_arn" {
   description = "Set as AWS_DEPLOY_ROLE_ARN repo variable"
-  value       = aws_iam_role.deploy.arn
+  value       = "arn:aws:iam::385467776718:role/hurricane-ready-github-deploy" # managed in tofu-or-not-tofu
 }
 
 output "ecr_repository" {
