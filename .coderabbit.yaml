@@ -1,0 +1,128 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+tone_instructions: "Be concise. People act on these alerts: prioritise threat-level correctness, alert delivery and safety over style."
+
+reviews:
+  profile: assertive
+  # Request changes for blocking findings; approve once they're resolved
+  auto_approvals:
+    enabled: true
+    # Authors can't wave findings through with @coderabbitai approve/resolve
+    allow_author_approval: false
+    # Above this risk (see merge_risk_instructions) CodeRabbit withholds its
+    # approval. That is advisory, not a merge gate: whoever merges decides.
+    max_merge_risk: moderate
+    # Lockfiles are excluded from review below, so a dependency-only change
+    # must never be auto-approved; it needs a human look.
+    overrides:
+      - paths:
+          - "**/package-lock.json"
+          - "**/.terraform.lock.hcl"
+        enabled: false
+      # The risk rating is a judgement, so a small change here could still
+      # rate low; the threat level and how it's briefed always need a human.
+      - paths:
+          - "src/threat.mjs"
+          - "src/briefing.mjs"
+        enabled: false
+  merge_risk_instructions: >
+    Critical: threat level logic in src/threat.mjs, or anything that could
+    under-report a threat. High: how briefing.mjs handles the level, alert
+    delivery (notify, push, unsubscribe), url-safety, WAF, TLS or IAM in infra,
+    replacing the ECS service or CloudFront distribution, and removing CI gates.
+    Moderate: feed parsing, sw.js and the web shell, the Dockerfile. Low: copy,
+    docs and tests that only add coverage.
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false
+    ignore_title_keywords:
+      - "[WIP]"
+      - "[skip review]"
+
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/.terraform/**"
+    - "!**/.terraform.lock.hcl"
+    - "!**/*.tfstate*"
+    - "!**/package-lock.json"
+    - "!docs/superpowers/**"
+
+  path_instructions:
+    - path: "src/threat.mjs"
+      instructions: >
+        The threat engine must stay deterministic and pure: geometry and explicit
+        thresholds, no I/O and no model in the loop. Any change to a level boundary,
+        distance or track projection needs matching unit tests, including both sides
+        of each boundary, multi-storm worst case and missing-data fallbacks. Flag
+        anything that could under-report a threat.
+    - path: "src/briefing.mjs"
+      instructions: >
+        Claude only writes the briefing for an already-decided level. Flag any
+        change that lets the model choose or alter the level, drops the prompt rule
+        forbidding it, or removes the template fallback used without credentials.
+        Briefings must stay calm and match the level.
+    - path: "src/{notify,push,unsubscribe-token,storage}.mjs"
+      instructions: >
+        Alerts must fire exactly once per level change: check dedupe, retries and
+        partial failure across SMS, email, webhook and Web Push. Unsubscribe tokens
+        must be signed and checked in constant time. Expired push subscriptions (410)
+        are pruned. Don't log phone numbers, emails or subscription endpoints.
+    - path: "src/{url-safety,ratelimit,endpoint,server,etag}.mjs"
+      instructions: >
+        url-safety guards outbound fetches and webhooks against SSRF; flag anything
+        that loosens it. Keep rate limits on public routes, and /healthz must keep
+        reporting dataAgeSeconds and stale.
+    - path: "src/**/*.mjs"
+      instructions: >
+        External feeds (NHC, Open-Meteo, RainViewer, GOES) can be slow, malformed or
+        missing; check timeouts and that bad data degrades safely instead of
+        reporting ALL CLEAR.
+    - path: "web/**"
+      instructions: >
+        After changing any file in the SHELL list in web/sw.js (index.html, app.js,
+        the manifest, icons) or sw.js itself, the CACHE version must be bumped;
+        CloudFront invalidation is manual. Check accessibility and
+        plain language for a public audience.
+    - path: "infra/**/*.tf"
+      instructions: >
+        Keep WAF in front of CloudFront, TLS 1.2+ and HSTS. Flag IAM with wildcard
+        Action or Resource, SNS/SES permissions broader than the app needs, the
+        deploy role trusting more than this repo's main branch, and changes that
+        would recreate the ECS service or distribution.
+    - path: "{Dockerfile,compose*.yaml}"
+      instructions: >
+        Keep the container hardening (non-root, read-only filesystem, dropped
+        capabilities, healthcheck). Secrets such as VAPID keys come from the secret
+        store at runtime, never baked into the image or committed .env files.
+    - path: ".github/workflows/**"
+      instructions: >
+        CI must keep the replay ladder test, the Playwright smoke test and the Trivy
+        HIGH/CRITICAL gate. Release deploys only from main via OIDC. Flag unpinned
+        third-party actions, broad `permissions` and secrets echoed to logs.
+
+  tools:
+    gitleaks:
+      enabled: true
+    eslint:
+      enabled: true
+    checkov:
+      enabled: true
+    tflint:
+      enabled: true
+    hadolint:
+      enabled: true
+    actionlint:
+      enabled: true
+    markdownlint:
+      enabled: false
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  learnings:
+    scope: global
