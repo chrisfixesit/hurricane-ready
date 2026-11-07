@@ -227,6 +227,22 @@ resource "aws_ecs_task_definition" "app" {
   execution_role_arn       = aws_iam_role.exec.arn
   task_role_arn            = aws_iam_role.task.arn
 
+  # Durable /data (issue #88) — see efs.tf. Without this the writable layer
+  # dies with the task and every push subscriber is dropped on each deploy.
+  volume {
+    name = "state"
+
+    efs_volume_configuration {
+      file_system_id     = aws_efs_file_system.state.id
+      transit_encryption = "ENABLED"
+
+      authorization_config {
+        access_point_id = aws_efs_access_point.state.id
+        iam             = "ENABLED"
+      }
+    }
+  }
+
   container_definitions = jsonencode([{
     name      = "app"
     image     = "${aws_ecr_repository.app.repository_url}:latest"
@@ -234,6 +250,11 @@ resource "aws_ecs_task_definition" "app" {
     portMappings = [{
       containerPort = 8080
       protocol      = "tcp"
+    }]
+    mountPoints = [{
+      sourceVolume  = "state"
+      containerPath = "/data"
+      readOnly      = false
     }]
     environment = [
       { name = "REPLAY", value = "0" },
