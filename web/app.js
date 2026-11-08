@@ -283,15 +283,27 @@
     // Orientation labels for the neighbouring islands (#128). [name, lat, lon] are
     // approximate island centroids (Wikipedia/GeoNames geographic centres, rounded
     // to 0.01 deg). Barbados is not listed: its permanent tooltip already names it.
+    // An optional 4th item "above" puts the name over the point: Trinidad sits at the
+    // bottom edge of the 280px mobile map, where a label below would be clipped.
     const MAP_LABELS = [
       ["Dominica", 15.42, -61.35], ["Martinique", 14.64, -61.02], ["St Lucia", 13.91, -60.98],
       ["St Vincent", 13.25, -61.20], ["Grenada", 12.12, -61.68], ["Tobago", 11.25, -60.68],
-      ["Trinidad", 10.69, -61.22],
+      ["Trinidad", 10.45, -61.30, "above"],
     ];
 
     function initMap(island) {
       mapIsland = island;
       map = L.map("map", { zoomControl: false }).setView([island.lat, island.lon], 6);
+      // Drop the Ukrainian-flag prefix so the credit fits on one line at 320px and
+      // can't cover the Trinidad label (#128); the OSM/CARTO credit stays in full.
+      map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
+      // Own layer group so renderMap's layerGroup.clearLayers() leaves it alone.
+      // The span is decorative (the map region has its own label), so aria-hidden.
+      const islandLabels = L.layerGroup(MAP_LABELS.map(([name, lat, lon, pos]) =>
+        L.marker([lat, lon], {
+          interactive: false, keyboard: false,
+          icon: L.divIcon({ className: "map-label-icon", iconSize: [0, 0], html: `<span class="map-label${pos === "above" ? " above" : ""}" aria-hidden="true">${name}</span>` }),
+        }))).addTo(map);
       const carto = basemap = L.tileLayer(cartoUrl(), {
         attribution: "&copy; OpenStreetMap contributors &copy; CARTO", maxZoom: 19,
         // Both tile hosts check the Referer (CARTO's key is locked to our
@@ -318,13 +330,6 @@
           referrerPolicy: "strict-origin-when-cross-origin",
         }).addTo(map);
       });
-      // Own layer group so renderMap's layerGroup.clearLayers() leaves it alone.
-      // The span is decorative (the map region has its own label), so aria-hidden.
-      const islandLabels = L.layerGroup(MAP_LABELS.map(([name, lat, lon]) =>
-        L.marker([lat, lon], {
-          interactive: false, keyboard: false,
-          icon: L.divIcon({ className: "map-label-icon", iconSize: [0, 0], html: `<span class="map-label" aria-hidden="true">${name}</span>` }),
-        }))).addTo(map);
       layerGroup = L.layerGroup().addTo(map);
       setupRadar();
     }

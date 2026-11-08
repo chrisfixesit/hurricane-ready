@@ -982,13 +982,40 @@ test.describe("radar island labels (#128)", () => {
     await expect(page.locator(".map-label")).toHaveCount(0);
   });
 
-  test("no custom Barbados label collides with the island marker", async ({ page }) => {
+  test("the Barbados tooltip (its label) does not collide with the island marker", async ({ page }) => {
     await openRadar(page, "light", 200);
     await expect(page.locator(".map-label").first()).toBeVisible();
     const m = await page.locator(".leaflet-overlay-pane path.leaflet-interactive").first().boundingBox();
-    for (const el of await page.locator(".map-label, .leaflet-tooltip").filter({ hasText: /barbados/i }).all()) {
+    const named = await page.locator(".map-label, .leaflet-tooltip").filter({ hasText: /barbados/i }).all();
+    expect(named.length).toBeGreaterThan(0);
+    for (const el of named) {
       const t = await el.boundingBox();
       expect(m.x < t.x + t.width && t.x < m.x + m.width && m.y < t.y + t.height && t.y < m.y + m.height).toBe(false);
     }
+  });
+
+  test("after the OSM fallback, a theme switch keeps labels hidden and requests no nolabels tiles", async ({ page }) => {
+    const requested = await openRadar(page, "light", 403);
+    await expect(page.locator(".basemap-fallback").first()).toBeAttached({ timeout: 15000 });
+    await expect(page.locator(".map-label")).toHaveCount(0);
+    const before = requested.length;
+    await page.locator("#settings-btn").click();
+    await page.selectOption("#set-theme", "dark");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await page.waitForTimeout(500);
+    await expect(page.locator(".map-label")).toHaveCount(0);
+    expect(requested.slice(before).filter((u) => /_nolabels/.test(u))).toEqual([]);
+  });
+
+  test("at 320px the attribution clears the Trinidad label and keeps the OSM/CARTO credit", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
+    await openRadar(page, "light", 200);
+    const trinidad = page.locator(".map-label").filter({ hasText: /^Trinidad$/i });
+    await expect(trinidad).toBeVisible();
+    const attr = page.locator(".leaflet-control-attribution");
+    await expect(attr).toContainText("OpenStreetMap");
+    await expect(attr).toContainText("CARTO");
+    const a = await attr.boundingBox(), t = await trinidad.boundingBox();
+    expect(a.x < t.x + t.width && t.x < a.x + a.width && a.y < t.y + t.height && t.y < a.y + a.height).toBe(false);
   });
 });

@@ -360,6 +360,7 @@
     .map-label { position: absolute; transform: translate(-50%, 6px); white-space: nowrap; pointer-events: none;
       font: 700 11px/1 system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text);
       text-shadow: -1px -1px 0 var(--card), 1px -1px 0 var(--card), -1px 1px 0 var(--card), 1px 1px 0 var(--card), 0 0 3px var(--card); }
+    .map-label.above { transform: translate(-50%, calc(-100% - 6px)); }
     @media (max-width: 720px) { #map { height: 280px; } }
 
     /* Mobile: comfortable tap targets + a little more breathing room. */
