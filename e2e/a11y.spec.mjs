@@ -767,6 +767,23 @@ test("a throwing non-critical renderer does not hide an active storm", async ({ 
   expect(errors.some((e) => /render failed: forecast/.test(e))).toBe(true);
 });
 
+// (#129) one malformed storm must not drop the later storms from the radar map.
+test("a storm whose cone fails keeps its marker and does not hide later storms on the map (#129)", async ({ page }) => {
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  // forecastPoints is not iterable, so coneFor throws for the first storm
+  await mockStorms(page, [
+    { ...STORM, id: "al90", name: "Badone", intensityKt: 60, forecastPoints: 5 },
+    { ...STORM, id: "al91", name: "Goodtwo", intensityKt: 70, lat: 14, lon: -50 },
+  ]);
+  await load(page, "light");
+  await page.evaluate(() => { location.hash = "#radar"; });
+  await expect(page.locator(".leaflet-tooltip", { hasText: "Badone (60 kt)" })).toHaveCount(1);
+  await expect(page.locator(".leaflet-tooltip", { hasText: "Goodtwo (70 kt)" })).toHaveCount(1);
+  expect(errors.some((e) => /render failed: map storm Badone/.test(e))).toBe(true);
+  expect(errors.some((e) => /render failed: map$/.test(e))).toBe(false);
+});
+
 // the skip link must not take the native #main route when pressed before `load`.
 // An <img> added as soon as <body> exists and held by a route keeps `load`
 // pending, while the deferred app.js still runs at DOMContentLoaded.
