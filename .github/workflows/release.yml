@@ -14,20 +14,44 @@ permissions:
   packages: write   # GHCR
   id-token: write   # AWS OIDC (used only when AWS vars are set)
 
-# One release at a time. Each run pushes :latest and redeploys, so overlapping
-# runs could finish out of order and leave an older build live (seen
-# 2026-11-08 when #94-#96 merged together). Queued runs wait rather than
-# cancel, so a half-finished deploy is never interrupted; GitHub keeps only
-# the newest pending run, which is the one that should win.
+# One release at a time per ref. Each run pushes :latest and redeploys, so
+# overlapping runs could finish out of order and leave an older build live
+# (seen 2026-11-08 when #94-#96 merged together). Queued runs wait rather
+# than cancel, so a half-finished deploy is never interrupted. GitHub doesn't
+# guarantee queue order, so the `current` job below also makes a run that
+# isn't main's newest commit skip publishing. Keyed by ref so a manual run on
+# another branch can't displace a pending main release.
 concurrency:
-  group: release
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
   AWS_REGION: us-east-1
 
 jobs:
+  # Runs once this run holds the lock: publish only if our commit is still
+  # main's head, so a stale run can never push :latest after a newer one.
+  current:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      newest: ${{ steps.check.outputs.newest }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)
+          if [ "$head" = "$GITHUB_SHA" ]; then
+            echo "newest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main has moved on to ${head::12}; skipping so this older build can't be published last."
+            echo "newest=false" >> "$GITHUB_OUTPUT"
+          fi
+
   publish:
+    needs: current
+    if: needs.current.outputs.newest == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
