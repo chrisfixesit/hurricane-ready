@@ -727,7 +727,7 @@
       const el = document.getElementById("shelter-list");
       if (!parish) { el.innerHTML = ""; return; }
       el.innerHTML = SHELTERS.filter((s) => s.parish === parish)
-        .map((s) => `<div class="shelter"><span class="s-name">${s.name}</span>${s.wc ? '<span class="s-wc" title="Wheelchair access" aria-label="Wheelchair access">♿</span>' : ""}</div>`)
+        .map((s) => `<div class="shelter"><span class="s-name">${s.name}</span>${s.wc ? '<span class="s-wc" aria-hidden="true">♿</span><span class="sr-only">Wheelchair access</span>' : ""}</div>`)
         .join("");
     }
 

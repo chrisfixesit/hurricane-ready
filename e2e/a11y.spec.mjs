@@ -387,3 +387,54 @@ test("radar and satellite play buttons: visible label is the accessible name", a
     await expect(btn).toHaveAccessibleName(play);
   }
 });
+
+test("alerts, status and advisory link sit in a named region landmark (#110)", async ({ page }) => {
+  await page.goto(BASE, { waitUntil: "load" });
+  const region = page.getByRole("region", { name: "Alerts and status" });
+  await expect(region).toHaveCount(1);
+  await expect(region.getByRole("link", { name: /Barbados Met Services/ })).toBeVisible();
+  await expect(region.locator("#alerts-bar")).toHaveCount(1);
+  await expect(region.locator("#civil-alert")).toHaveCount(1);
+  await expect(region.locator("#offline-note")).toHaveCount(1);
+});
+
+test("all visible text outside the skip link is inside a landmark (#110)", async ({ page }) => {
+  await page.goto(BASE, { waitUntil: "load" });
+  for (const hash of ["#home", "#radar", "#shelters"]) {
+    await page.evaluate((h) => { location.hash = h; }, hash);
+    const stray = await page.evaluate(() => {
+      const out = [];
+      const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n; (n = w.nextNode());) {
+        const el = n.parentElement;
+        if (!n.nodeValue.trim() || !el || el.closest("script,style,noscript,.skip-link")) continue;
+        if (!el.checkVisibility()) continue;
+        if (!el.closest("header,main,footer,nav,[role=region],section[aria-label]")) out.push(n.nodeValue.trim().slice(0, 60));
+      }
+      return out;
+    });
+    expect(stray, hash).toEqual([]);
+  }
+});
+
+test("wheelchair marker uses hidden text, not aria-label on a bare span (#110)", async ({ page }) => {
+  await page.goto(BASE, { waitUntil: "load" });
+  await page.locator('.section-nav a[href="#shelters"]').click();
+  await page.selectOption("#parish-select", "Christ Church"); // static data: wc: true
+  const shelter = page.locator("#shelter-list .shelter").first();
+  await expect(shelter).toContainText("Wheelchair access"); // sr-only text is in textContent
+  await expect(shelter.locator(".s-wc")).toHaveAttribute("aria-hidden", "true");
+  await expect(page.locator("#shelter-list span[aria-label]")).toHaveCount(0);
+  await expect(shelter.getByText("Wheelchair access")).toHaveClass(/sr-only/);
+});
+
+test("radar map is a named region landmark (#110)", async ({ page }) => {
+  await page.goto(BASE, { waitUntil: "load" });
+  await page.evaluate(() => { location.hash = "#radar"; });
+  await expect(page.getByRole("region", { name: /rain radar/i })).toHaveCount(1);
+});
+
+test("settings button announces a dialog popup (#110)", async ({ page }) => {
+  await page.goto(BASE, { waitUntil: "load" });
+  await expect(page.locator("#settings-btn")).toHaveAttribute("aria-haspopup", "dialog");
+});
