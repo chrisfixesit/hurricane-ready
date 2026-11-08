@@ -18,9 +18,10 @@ permissions:
 # overlapping runs could finish out of order and leave an older build live
 # (seen 2026-11-08 when #94-#96 merged together). Queued runs wait rather
 # than cancel, so a half-finished deploy is never interrupted. GitHub doesn't
-# guarantee queue order, so the `current` job below also makes a run that
-# isn't main's newest commit skip publishing. Keyed by ref so a manual run on
-# another branch can't displace a pending main release.
+# guarantee queue order and may drop a pending run, so whichever run takes the
+# lock builds main's *current* head (see `current` below), not the commit that
+# triggered it: the newest code always ends up live. Keyed by ref so a manual
+# run on another branch can't displace a pending main release.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -29,37 +30,40 @@ env:
   AWS_REGION: us-east-1
 
 jobs:
-  # Runs once this run holds the lock: publish only if our commit is still
-  # main's head, so a stale run can never push :latest after a newer one.
+  # Runs once this run holds the lock and resolves main's head at that moment.
+  # Publishing that commit (rather than GITHUB_SHA) means a stale or reordered
+  # run still ships the newest code, and a docs-only commit on top (which
+  # doesn't trigger a release itself) still carries the code beneath it.
   current:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
-      newest: ${{ steps.check.outputs.newest }}
+      sha: ${{ steps.head.outputs.sha }}
     steps:
-      - id: check
+      - id: head
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           head=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)
-          if [ "$head" = "$GITHUB_SHA" ]; then
-            echo "newest=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::main has moved on to ${head::12}; skipping so this older build can't be published last."
-            echo "newest=false" >> "$GITHUB_OUTPUT"
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "::notice::main has moved on to ${head::12}; releasing that instead of ${GITHUB_SHA::12}."
           fi
+          echo "sha=$head" >> "$GITHUB_OUTPUT"
 
   publish:
     needs: current
-    if: needs.current.outputs.newest == 'true'
     runs-on: ubuntu-latest
+    env:
+      SHA: ${{ needs.current.outputs.sha }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ needs.current.outputs.sha }}
 
       - name: Build image
         run: |
           docker build \
-            -t hurricane-ready:${GITHUB_SHA::12} \
+            -t hurricane-ready:${SHA::12} \
             -t hurricane-ready:latest .
 
       # ---------- GHCR (always; no cloud account needed) ----------
@@ -69,9 +73,9 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           GHCR="ghcr.io/${GITHUB_REPOSITORY,,}"
           docker tag hurricane-ready:latest "$GHCR:latest"
-          docker tag hurricane-ready:latest "$GHCR:${GITHUB_SHA::12}"
+          docker tag hurricane-ready:latest "$GHCR:${SHA::12}"
           docker push "$GHCR:latest"
-          docker push "$GHCR:${GITHUB_SHA::12}"
+          docker push "$GHCR:${SHA::12}"
 
       # ---------- AWS (activates when AWS_DEPLOY_ROLE_ARN repo variable is set) ----------
 
@@ -88,9 +92,9 @@ jobs:
           aws ecr get-login-password --region "$AWS_REGION" \
             | docker login --username AWS --password-stdin "${{ vars.ECR_REPOSITORY }}"
           docker tag hurricane-ready:latest "${{ vars.ECR_REPOSITORY }}:latest"
-          docker tag hurricane-ready:latest "${{ vars.ECR_REPOSITORY }}:${GITHUB_SHA::12}"
+          docker tag hurricane-ready:latest "${{ vars.ECR_REPOSITORY }}:${SHA::12}"
           docker push "${{ vars.ECR_REPOSITORY }}:latest"
-          docker push "${{ vars.ECR_REPOSITORY }}:${GITHUB_SHA::12}"
+          docker push "${{ vars.ECR_REPOSITORY }}:${SHA::12}"
 
       - name: Redeploy ECS service
         if: vars.AWS_DEPLOY_ROLE_ARN != '' && vars.ECS_CLUSTER != '' && vars.ECS_SERVICE != ''
