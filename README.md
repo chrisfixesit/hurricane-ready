@@ -149,7 +149,7 @@ Two workflows in `.github/workflows/`:
 **Monitoring:** `/healthz` returns liveness plus `dataAgeSeconds` and a `stale` flag (true when the watcher is up but hasn't refreshed in 3+ poll cycles). Point an uptime monitor (UptimeRobot, Pingdom, or a CloudWatch Synthetics canary) at `/healthz` and alert on non-200 or `stale: true`.
 - **Release** (push to main): always publishes the image to GHCR (`ghcr.io/christophercorbin/hurricane-ready`). When the AWS repo variables are set, it additionally assumes a role via OIDC (no stored keys), pushes to ECR, and force-redeploys the ECS service.
 
-To wire an AWS account: `cd infra && tofu apply` there, then set the outputs as GitHub repo variables (`AWS_DEPLOY_ROLE_ARN`, `ECR_REPOSITORY`, and later `ECS_CLUSTER`/`ECS_SERVICE`). Until then the pipeline is fully functional against GHCR — anyone can `docker run ghcr.io/christophercorbin/hurricane-ready`.
+**Infrastructure lives elsewhere.** The AWS side (ECS Fargate, ALB, CloudFront, WAF, EFS, ECR, the deploy role and the Google Weather secret) is managed with OpenTofu in [chrisfixesit/tofu-or-not-tofu](https://github.com/chrisfixesit/tofu-or-not-tofu), in stacks `accounts/sandbox/hurricane-ready` and `accounts/sandbox/github-deploy`. Change infrastructure there by PR: merging applies it. This repo only ships code. Release pushes the image and redeploys the service, and the GitHub repo variables (`AWS_DEPLOY_ROLE_ARN`, `ECR_REPOSITORY`, `ECS_CLUSTER`/`ECS_SERVICE`) point it at that stack. Without them the pipeline still works against GHCR: anyone can `docker run ghcr.io/chrisfixesit/hurricane-ready`.
 
 > **CloudFront invalidation is manual.** Release redeploys the ECS origin but does **not** invalidate the CDN. The app shell is cached at the edge (and `app.js` is served cache-first by the service worker), so after any change to `index.html`, `app.js`, or `sw.js`, bump `CACHE` in `web/sw.js` **and** invalidate CloudFront so viewers get the new assets:
 >
@@ -176,19 +176,15 @@ aws acm request-certificate \
 # 2. Add the validation CNAME(s) ACM gives you to your DNS provider.
 #    Wait for status: ISSUED.
 
-# 3. Set the Terraform variables and apply.
-cd infra
-cat > terraform.tfvars <<EOF
-aliases             = ["hurricane-ready.example.com"]
-acm_certificate_arn = "arn:aws:acm:us-east-1:<account-id>:certificate/<cert-id>"
-EOF
-tofu apply
+# 3. In chrisfixesit/tofu-or-not-tofu, change the domain in the
+#    accounts/sandbox/hurricane-ready stack (see its docs page) and open a PR.
+#    Merging it applies the change.
 
 # 4. Point the domain's DNS at the distribution's domain (CNAME or ALIAS to
-#    the dXXXXX.cloudfront.net hostname Terraform outputs).
+#    the dXXXXX.cloudfront.net hostname the stack outputs).
 ```
 
-What the apply changes:
+What that change applies:
 
 - `viewer_certificate` swaps to the ACM cert with `TLSv1.2_2021` as the minimum protocol.
 - The distribution serves the custom alias.
