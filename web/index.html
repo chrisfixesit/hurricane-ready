@@ -97,7 +97,7 @@
     :root[data-theme="light"] .ALL_CLEAR .b-title, :root[data-theme="light"] .chip.ALL_CLEAR, :root[data-theme="light"] .chance.low { color: #15803d; }
     :root[data-theme="light"] .WATCH .b-title, :root[data-theme="light"] .chip.WATCH, :root[data-theme="light"] .uv.moderate, :root[data-theme="light"] .chance.medium { color: #a16207; }
     :root[data-theme="light"] .WARNING .b-title, :root[data-theme="light"] .chip.WARNING, :root[data-theme="light"] .uv.high { color: #9a3412; } /* (#105) darker for 4.5:1 on the warning tint */
-    :root[data-theme="light"] .IMMINENT .b-title, :root[data-theme="light"] .chip.IMMINENT, :root[data-theme="light"] .chance.high, :root[data-theme="light"] .name-chip.active, :root[data-theme="light"] .emerg-num b { color: #b91c1c; }
+    :root[data-theme="light"] .IMMINENT .b-title, :root[data-theme="light"] .chip.IMMINENT, :root[data-theme="light"] .pass-close, :root[data-theme="light"] .chance.high, :root[data-theme="light"] .name-chip.active, :root[data-theme="light"] .emerg-num b { color: #b91c1c; }
     :root[data-theme="light"] .civil-alert .ca-text, :root[data-theme="light"] .civil-alert .ca-arrow { color: #b91c1c; }
     :root[data-theme="light"] .civil-alert .ca-text b { color: #7f1d1d; }
     :root[data-theme="light"] .uv.low, :root[data-theme="light"] .chance.low { color: #14532d; }
@@ -441,9 +441,11 @@
     .tropical-src a { color: var(--accent); }
 
     /* Season names */
-    .names { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.3rem 1.1rem 1.1rem; }
+    .names { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0.3rem 1.1rem 1.1rem; list-style: none; }
     .name-chip { font-size: 0.8rem; padding: 0.22rem 0.6rem; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); background: var(--card-2); }
-    .name-chip.used { opacity: 0.45; text-decoration: line-through; }
+    .name-chip.used { text-decoration: line-through; } /* no opacity: it dropped the muted text below AA (#108) */
+    .name-tag { margin-left: 0.3rem; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .pass-close { color: #fca5a5; }
     .name-chip.active { background: var(--imminent-soft); border-color: rgba(239,68,68,0.5); color: #fca5a5; font-weight: 700; }
     .name-chip.next { background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.5); color: var(--accent); font-weight: 700; }
 
@@ -702,8 +704,8 @@
         <p class="tropical-src" id="tropical-src"></p>
 
         <h2><span class="ico" data-icon="tags"></span> This season's storm names</h2>
-        <p class="hist-intro">Atlantic storms are named in order as they form. Active and used names are highlighted.</p>
-        <div class="names" id="season-names"></div>
+        <p class="hist-intro">Atlantic storms are named in order as they form. Each name is marked as active, next or used.</p>
+        <ul class="names" id="season-names"></ul>
 
         <h2><span class="ico" data-icon="lightbulb"></span> What the levels mean</h2>
         <div class="legend">

@@ -164,3 +164,49 @@ test("skip made before the first status render is not undone", async ({ page }) 
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await expect(page.locator("main#main")).toBeFocused();
 });
+
+// (#108) storm-name status must be readable without colour or hover, and the
+// "may track very close" note must pass AA. Deterministic: overlay the real
+// /api/status response with a fixed season and a close-passing storm.
+async function mockSeason(page) {
+  await page.route("**/api/status", async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    body.seasonNames = ["Arthur", "Bertha", "Cristobal", "Dolly"];
+    body.stormsSoFar = 1; // Arthur used, Bertha next
+    body.storms = [{
+      name: "Cristobal", classification: "Hurricane", intensityKt: 80,
+      assessment: { level: "WATCH", distanceNowKm: 900, closestApproachKm: 60, closestApproachInHours: 30,
+        method: "official-track", pass: { kind: "direct-hit-risk" } },
+    }];
+    await route.fulfill({ response: res, json: body });
+  });
+}
+
+test("storm names are a list with status in text", async ({ page }) => {
+  await mockSeason(page);
+  await load(page, "light");
+  await page.evaluate(() => { location.hash = "#storms"; });
+  const items = page.locator("ul#season-names > li.name-chip");
+  await expect(items).toHaveCount(4);
+  await expect(items.nth(0)).toHaveText(/Arthur\s*\(used\)/);
+  await expect(items.nth(1)).toHaveText(/Bertha.*next/);
+  await expect(items.nth(2)).toHaveText(/Cristobal.*active now/);
+  await expect(items.nth(3)).toHaveText(/^Dolly$/);
+  expect(await page.locator("#season-names [title]").count()).toBe(0);
+});
+
+for (const theme of ["light", "dark"]) {
+  test(`used storm name and "may track very close" note have AA contrast (${theme})`, async ({ page }) => {
+    await mockSeason(page);
+    await load(page, theme);
+    await page.evaluate(() => { location.hash = "#storms"; });
+    await expect(page.locator("#season-names .name-chip.used")).toBeVisible();
+    expect(await ratio(page, "#season-names .name-chip.used")).toBeGreaterThanOrEqual(AA_TEXT);
+    // the helper can't see opacity, which is what used to fade the chip below AA
+    expect(await page.locator("#season-names .name-chip.used").evaluate((e) => getComputedStyle(e).opacity)).toBe("1");
+    const note = page.locator("#storms-body small", { hasText: "may track very close" });
+    await expect(note).toBeVisible();
+    expect(await ratio(page, "#storms-body small.pass-close, #storms-body small")).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+}
