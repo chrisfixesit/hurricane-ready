@@ -216,6 +216,8 @@ for (const how of ["click", "Enter", "Space"]) {
     const btn = card.locator("h2 > button.card-toggle");
     const body = card.locator(".card-body");
     const controls = await btn.getAttribute("aria-controls");
+    expect(controls).toBeTruthy();
+    expect(await page.evaluate((id) => !!document.getElementById(id), controls)).toBe(true);
     expect(await body.getAttribute("id")).toBe(controls);
     const flip = async () => {
       if (how === "click") await btn.click();
@@ -237,5 +239,25 @@ test("next Tab after the skip link lands on the first card toggle button", async
   await page.locator(".skip-link").focus();
   await page.keyboard.press("Enter");
   await page.keyboard.press("Tab");
-  expect(await page.evaluate(() => document.activeElement.matches(".card:not([hidden]) > h2 > .card-toggle"))).toBe(true);
+  expect(await page.evaluate(() => {
+    const first = document.querySelector(".card:not([hidden]) > h2 > .card-toggle");
+    return !!first && document.activeElement === first;
+  })).toBe(true);
+});
+
+// A stale cached index.html can still have <details> cards when the new app.js
+// runs (#97), so the router must open those instead of throwing.
+test("router opens a native <details> card from a stale index.html", async ({ page }) => {
+  await load(page, "light");
+  const opened = await page.evaluate(() => {
+    const d = document.createElement("details");
+    d.className = "card"; d.dataset.page = "forecast";
+    d.innerHTML = "<summary>Old card</summary><p>body</p>";
+    document.querySelector("main").append(d);
+    setCardOpen(d, true);
+    const a = d.open;
+    setCardOpen(d, false);
+    return [a, d.open];
+  });
+  expect(opened).toEqual([true, false]);
 });

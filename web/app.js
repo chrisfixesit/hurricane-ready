@@ -1031,11 +1031,12 @@
     // see one thing at a time. Cards carry data-page; we show the active page's
     // cards and hide the rest. Hash-routed so pages are linkable + Back works.
     const PAGES = ["home", "forecast", "sea", "radar", "storms", "shelters", "prep"];
-    // Returns null for hashes that aren't a page (e.g. the skip link's #main),
-    // so those never reroute the user (#100).
     // Cards are heading + button disclosures (#107): the button's aria-expanded
     // and the body's hidden attribute are the single source of truth.
+    // A stale cached index.html can briefly pair with this app.js (app.js
+    // revalidates immediately, #97) and still have native <details> cards.
     function setCardOpen(card, open) {
+      if (card.tagName === "DETAILS") { card.open = open; return; }
       const btn = card.querySelector(".card-toggle"), body = card.querySelector(".card-body");
       if (!btn || !body) return;
       btn.setAttribute("aria-expanded", String(open));
@@ -1047,6 +1048,8 @@
     });
     document.querySelectorAll('.card[data-start="closed"]').forEach((c) => setCardOpen(c, false));
     let curPage = "home";
+    // Returns null for hashes that aren't a page (e.g. the skip link's #main),
+    // so those never reroute the user (#100).
     function pageFromHash() {
       const h = (location.hash || "").replace("#", "");
       return PAGES.includes(h) ? h : null;
