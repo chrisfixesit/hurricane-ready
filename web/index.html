@@ -513,7 +513,7 @@
       <span class="pill" id="mode"></span>
       <span class="pill" id="updated"></span>
       <div class="settings-wrap">
-        <button id="settings-btn" class="settings-btn" type="button" aria-label="Settings" aria-expanded="false" aria-haspopup="true" aria-controls="settings-panel"><span class="ico" data-icon="settings"></span></button>
+        <button id="settings-btn" class="settings-btn" type="button" aria-label="Settings" aria-expanded="false" aria-haspopup="dialog" aria-controls="settings-panel"><span class="ico" data-icon="settings"></span></button>
         <div id="settings-panel" class="settings-panel" role="dialog" aria-label="Settings" hidden>
           <label>Temperature
             <select id="set-temp"><option value="C">°C</option><option value="F">°F</option></select>
@@ -528,6 +528,7 @@
       </div>
     </header>
 
+    <section class="status-region" aria-label="Alerts and status">
     <a id="civil-alert" class="civil-alert" href="https://brb-secondary.capews.com/capews/public/active" target="_blank" rel="noopener" aria-live="assertive" aria-atomic="true" hidden>
       <span class="ca-ico" aria-hidden="true" data-icon="siren"></span>
       <span class="ca-text" id="civil-text"></span>
@@ -564,6 +565,7 @@
       <span class="adv-text">Beyond hurricanes, <b>Barbados Met Services</b> issues local advisories — small-craft, heavy-rain/flood, dust. Tap to check what's in effect now.</span>
       <span class="adv-arrow" aria-hidden="true">→</span>
     </a>
+    </section>
 
     <div class="layout">
     <nav class="section-nav" aria-label="Sections">
@@ -645,7 +647,7 @@
       <section class="card" id="radar" data-page="radar" data-start="closed">
         <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="radar-card-body"><span class="sum-t"><span class="ico" data-icon="radar"></span> Rain radar &amp; satellite</span><span class="chev" aria-hidden="true">▾</span></button></h2>
         <div class="card-body" id="radar-card-body">
-        <div id="map" aria-label="Live rain radar and active storms near Barbados"></div>
+        <div id="map" role="region" aria-label="Live rain radar and active storms near Barbados"></div>
         <div class="radar-bar">
           <button id="radar-toggle" type="button"><span aria-hidden="true">▶</span> Play radar</button>
           <span id="radar-time">—</span>
