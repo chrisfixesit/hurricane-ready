@@ -808,3 +808,25 @@ test("skip link pressed before load still uses the focus handler", async ({ page
     release();
   }
 });
+
+// if renderStorms itself throws mid-way, an active storm must never be left
+// looking like "No active systems": a plain-language warning row replaces it.
+test("a throwing storms renderer leaves a visible warning, not the empty message", async ({ page }) => {
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  await page.route("**/api/status", async (route) => {
+    const res = await route.fetch();
+    // no assessment: the row builder dereferences st.assessment and throws
+    await route.fulfill({ response: res, json: { ...(await res.json()), storms: [{ id: "al042026", name: "Dolly", classification: "Hurricane", intensityKt: 70, lat: 14, lon: -55 }] } });
+  });
+  await load(page, "light");
+  await page.evaluate(() => { location.hash = "#storms"; });
+  const row = page.locator("#storms-body tr");
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("Storm details couldn't be shown");
+  await expect(row).toContainText("Dolly");
+  await expect(row.locator('a[href="https://www.nhc.noaa.gov"]')).toBeVisible();
+  await expect(page.locator("#storms-empty")).toBeHidden();
+  await expect(page.locator("#storms-table")).toBeVisible();
+  expect(errors.some((e) => /render failed: storms/.test(e))).toBe(true);
+});

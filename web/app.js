@@ -1001,6 +1001,20 @@
       }
     }
 
+    // renderStorms threw partway: never leave "No active systems" or stale rows
+    // up while a storm is active. Plain-language warning row instead.
+    function stormsFallback(s) {
+      const n = s.storms.length;
+      if (!n) return;
+      const body = document.getElementById("storms-body");
+      if (!body) return;
+      const names = s.storms.map(x => x && x.name ? escapeHtml(String(x.name)) : "").filter(Boolean).join(", ");
+      const table = document.getElementById("storms-table"), empty = document.getElementById("storms-empty");
+      if (table) table.hidden = false;
+      if (empty) empty.hidden = true;
+      body.innerHTML = `<tr><td colspan="6"><b>Storm details couldn't be shown</b> — ${n} active system${n === 1 ? "" : "s"}${names ? ` (${names})` : ""}. Check the <a href="https://www.nhc.noaa.gov">National Hurricane Center</a>.</td></tr>`;
+    }
+
     function render(s) {
       // Defensive defaults (#46): a partial /api/status (older SW cache,
       // 5xx-but-parseable, schema drift on deploy boundary) must not abort
@@ -1050,7 +1064,10 @@
       // Storm-critical renderers run first and every renderer is isolated:
       // schema drift in one section must never hide an active storm (#126).
       const safely = (name, fn) => { try { fn(); } catch (err) { console.error("render failed: " + name, err); } };
-      safely("storms", () => renderStorms(s));
+      try { renderStorms(s); } catch (err) {
+        console.error("render failed: storms", err);
+        stormsFallback(s);
+      }
       safely("map", () => renderMap(s));
       safely("now", () => renderNow(s));
       safely("thingsToDo", () => renderThingsToDo(s));
@@ -1088,8 +1105,9 @@
     // Delegated at top level so a skip pressed before `load` isn't the native #main route.
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".skip-link")) return;
-      e.preventDefault();
       const main = document.getElementById("main");
+      if (!main) return; // let the native #main route proceed
+      e.preventDefault();
       main.focus({ preventScroll: true });
       main.scrollIntoView();
     });
