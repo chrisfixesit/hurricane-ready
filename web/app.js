@@ -278,10 +278,13 @@
       // once to OpenStreetMap's own tiles, darkened in CSS to match. Radar and
       // storms draw on top either way. A browser or extension that strips the
       // Referer entirely may be refused by both; that's no worse than before.
-      let cartoOk = false, cartoErrors = 0, swapped = false;
-      carto.on("tileload", () => { cartoOk = true; });
+      // Judged per loading cycle (each pan/zoom starts one): a tile or two
+      // served from cache mustn't hide the rest of the view failing.
+      let loads = 0, errors = 0, swapped = false;
+      carto.on("loading", () => { loads = 0; errors = 0; });
+      carto.on("tileload", () => { loads++; });
       carto.on("tileerror", () => {
-        if (cartoOk || swapped || ++cartoErrors < 3) return;
+        if (swapped || ++errors < 3 || errors <= loads) return;
         swapped = true;
         map.removeLayer(carto);
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
