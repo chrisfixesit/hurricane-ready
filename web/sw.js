@@ -81,10 +81,21 @@ self.addEventListener("fetch", (e) => {
   if (url.pathname === "/app.js") {
     // A 5xx from the origin or edge resolves rather than rejects, so fall back
     // to the cached script on any non-OK response too, not only when offline.
+    const network = fetch(req)
+      .then((r) => (r.ok ? cacheCopy(req, r, e) : caches.match(req).then((c) => c || r)))
+      .catch(() => null);
+    // Keep the worker alive until the network settles, so a slow fresh copy
+    // still lands in the cache for next time even after we've answered.
+    e.waitUntil(network);
+    // On a slow connection (likely in a storm), don't hold the dashboard for
+    // more than 3s: use the cached script then, if there is one.
+    const slow = new Promise((res) => setTimeout(res, 3000))
+      .then(() => caches.match(req))
+      .then((c) => c || network);
     e.respondWith(
-      fetch(req)
-        .then((r) => (r.ok ? cacheCopy(req, r, e) : caches.match(req).then((c) => c || r)))
-        .catch(() => caches.match(req))
+      Promise.race([network, slow])
+        .then((r) => r || caches.match(req))
+        .then((r) => r || Response.error())
     );
     return;
   }
