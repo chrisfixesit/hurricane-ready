@@ -579,7 +579,7 @@
       if (!o || !o.daily || !o.daily.length) { wrap.innerHTML = '<p class="summary">Forecast unavailable right now.</p>'; document.getElementById("forecast-summary").textContent = ""; return; }
       wrap.innerHTML = o.daily.map((d, idx) => {
         const dow = idx === 0 ? "Today" : islandDOW(d.date);
-        const rain = d.rainProb != null ? rainChance("rain", d.rainProb) : "";
+        const rain = d.rainProb != null ? rainChance("rain", d.rainProb, (d.thunderProb ?? 0) >= 30 ? ", " : "") : "";
         const thunder = thunderChance(d.thunderProb);
         return `<div class="day"><div class="dow">${dow}</div><div class="ico" aria-hidden="true">${icon(d.code)}</div>${condSr(d.description)}
           <div><span class="sr-only">High </span><span class="hi">${fmtDeg(d.maxC)}</span> <span class="sr-only">low </span><span class="lo">${fmtDeg(d.minC)}</span></div>${rain}${thunder}</div>`;
@@ -865,14 +865,21 @@
 
     function renderStorms(s) {
       const an = document.getElementById("arrival-note");
-      const arr = windsArrival(s);
-      if (arr) {
-        const when = arr.hours === 0 ? "are arriving now"
-          : `could reach us by about ${timeLabel(new Date(Date.parse(s.updatedAt) + arr.hours * 3600000).toISOString())} (~+${arr.hours}h)`;
-        an.hidden = false;
-        // Polite live region — dedup via setLiveHtml (#49)
-        setLiveHtml(an, `<span class="chance high">Winds</span> Tropical-storm-force winds (34&nbsp;kt+) from ${escapeHtml(arr.name)} ${when}. Finish preparations early.`);
-      } else { an.hidden = true; an.__hrLast = undefined; }
+      // A failed arrival update hides the note rather than leaving a stale
+      // warning up; the storm rows below still render (#126).
+      try {
+        const arr = windsArrival(s);
+        if (arr) {
+          const when = arr.hours === 0 ? "are arriving now"
+            : `could reach us by about ${timeLabel(new Date(Date.parse(s.updatedAt) + arr.hours * 3600000).toISOString())} (~+${arr.hours}h)`;
+          an.hidden = false;
+          // Polite live region — dedup via setLiveHtml (#49)
+          setLiveHtml(an, `<span class="chance high">Winds</span> Tropical-storm-force winds (34&nbsp;kt+) from ${escapeHtml(arr.name)} ${when}. Finish preparations early.`);
+        } else { an.hidden = true; an.__hrLast = undefined; }
+      } catch (err) {
+        if (an) { an.hidden = true; an.__hrLast = undefined; }
+        console.error("render failed: arrival", err);
+      }
       const passText = (a) => {
         const p = a.pass;
         if (!p || p.kind === "distant") return "";
@@ -891,9 +898,15 @@
         </tr>`).join("");
       document.getElementById("storms-body").innerHTML = rows;
       // Empty message lives outside the table so it reflows at 320px (#111)
-      document.getElementById("storms-table").hidden = !rows;
-      document.getElementById("storms-empty").hidden = !!rows;
+      // Null-guarded: a stale cached index.html (pre-#124) lacks these ids.
+      const stTable = document.getElementById("storms-table"), stEmpty = document.getElementById("storms-empty");
+      if (stTable) stTable.hidden = !rows;
+      if (stEmpty) stEmpty.hidden = !!rows;
+    }
 
+    // Level-change history; its own block so a malformed entry can't wipe the
+    // storm rows above it (#126).
+    function renderHistory(s) {
       document.getElementById("history").innerHTML = (s.history ?? []).slice(-8).reverse()
         .map(h => `${new Date(h.at).toUTCString().slice(5, 22)} UTC — ${h.from.replace("_", " ")} → <b>${h.to.replace("_", " ")}</b>`)
         .join("<br>") || "No level changes yet";
@@ -999,6 +1012,20 @@
       }
     }
 
+    // renderStorms threw partway: never leave "No active systems" or stale rows
+    // up while a storm is active. Plain-language warning row instead.
+    function stormsFallback(s) {
+      const n = s.storms.length;
+      if (!n) return;
+      const body = document.getElementById("storms-body");
+      if (!body) return;
+      const names = s.storms.map(x => x && x.name ? escapeHtml(String(x.name)) : "").filter(Boolean).join(", ");
+      const table = document.getElementById("storms-table"), empty = document.getElementById("storms-empty");
+      if (table) table.hidden = false;
+      if (empty) empty.hidden = true;
+      body.innerHTML = `<tr><td colspan="6"><b>Storm details couldn't be shown</b> — ${n} active system${n === 1 ? "" : "s"}${names ? ` (${names})` : ""}. Check the <a href="https://www.nhc.noaa.gov">National Hurricane Center</a>.</td></tr>`;
+    }
+
     function render(s) {
       // Defensive defaults (#46): a partial /api/status (older SW cache,
       // 5xx-but-parseable, schema drift on deploy boundary) must not abort
@@ -1009,51 +1036,69 @@
       s.storms = Array.isArray(s.storms) ? s.storms : [];
       s.history = Array.isArray(s.history) ? s.history : [];
       lastStatus = s;
-      renderCivil(s);
-      document.getElementById("island").textContent = s.island.name;
-      document.getElementById("now-island").textContent = s.island.name;
-      document.getElementById("mode").innerHTML = s.mode === "replay" ? "🎬 <b>Replay:</b> Beryl 2024" : "📡 <b>Live:</b> NHC feed";
-      document.getElementById("updated").textContent = !s.updatedAt ? ""
-        : s.mode === "replay" ? new Date(s.updatedAt).toUTCString().slice(5, 22) + " UTC"
-        : relTime(s.updatedAt);
 
-      const banner = document.getElementById("banner");
-      banner.className = "banner " + s.level;
-      document.getElementById("banner-title").textContent = LEVEL_TITLE[s.level];
-      // Banner sub is in a polite live region — only update DOM on change (#49)
-      setLiveText(document.getElementById("banner-sub"), LEVEL_SUB[s.level]);
-      document.getElementById("banner-storms").innerHTML = s.storms.length
-        ? `tracking<b>${s.storms.map(x => escapeHtml(x.name)).join(", ")}</b>` : "";
-
-      // Safety: the Storms card is collapsed by default, but if a threat is
-      // present or escalates we auto-open it so people never have to hunt for
-      // it. Tracks the last level so a user who re-closes it is respected
-      // unless the situation worsens.
-      const RANK = { ALL_CLEAR: 0, WATCH: 1, WARNING: 2, IMMINENT: 3 };
-      const curRank = RANK[s.level] ?? 0;
-      const civilActive = !!(s.civilAlert && s.civilAlert.active);
-      if ((curRank > 0 || s.storms.length || civilActive) && curRank > (render._autoLvl ?? -1)) {
-        const st = document.getElementById("storms");
-        if (st) setCardOpen(st, true);
+      // Storm-critical renderers run first and every block is isolated:
+      // schema drift or stale markup in one section must never hide an
+      // active storm (#126). No block reads state another block sets.
+      const safely = (name, fn) => { try { fn(); } catch (err) { console.error("render failed: " + name, err); } };
+      try { renderStorms(s); } catch (err) {
+        console.error("render failed: storms", err);
+        stormsFallback(s);
       }
-      render._autoLvl = curRank;
+      safely("map", () => renderMap(s));
 
-      document.getElementById("briefing").textContent = sanitizeBriefing(s.briefing);
-      document.getElementById("briefing-source").textContent =
-        s.briefingSource === "claude" ? "✨ Written by Claude on Amazon Bedrock · level decided by deterministic engine" :
-        s.briefingSource === "template" ? "Standard guidance · level decided by deterministic engine" : "";
-      document.getElementById("replay-label").textContent = s.replayLabel ?? "";
+      // Threat banner next: safety-critical too, so isolated but early.
+      safely("banner", () => {
+        const banner = document.getElementById("banner");
+        banner.className = "banner " + s.level;
+        document.getElementById("banner-title").textContent = LEVEL_TITLE[s.level];
+        // Banner sub is in a polite live region — only update DOM on change (#49)
+        setLiveText(document.getElementById("banner-sub"), LEVEL_SUB[s.level]);
+        document.getElementById("banner-storms").innerHTML = s.storms.length
+          ? `tracking<b>${s.storms.map(x => escapeHtml(x.name)).join(", ")}</b>` : "";
+      });
 
-      renderNow(s);
-      renderThingsToDo(s);
-      renderForecast(s.outlook);
-      renderRainWind(s.outlook, s.weather);
-      renderSea(s.outlook);
-      renderSunMoon(s.outlook);
-      renderAir(s.outlook);
-      renderTropical(s);
-      renderStorms(s);
-      renderMap(s);
+      // Safety: the Storms card starts collapsed only where its markup says
+      // data-start="closed"; either way, if a threat is present or escalates
+      // we auto-open it so people never have to hunt for it. Tracks the last
+      // level so a user who re-closes it is respected unless the situation
+      // worsens.
+      safely("autoOpen", () => {
+        const RANK = { ALL_CLEAR: 0, WATCH: 1, WARNING: 2, IMMINENT: 3 };
+        const curRank = RANK[s.level] ?? 0;
+        const civilActive = !!(s.civilAlert && s.civilAlert.active);
+        if ((curRank > 0 || s.storms.length || civilActive) && curRank > (render._autoLvl ?? -1)) {
+          const st = document.getElementById("storms");
+          if (st) setCardOpen(st, true);
+        }
+        render._autoLvl = curRank;
+      });
+
+      safely("civil", () => renderCivil(s));
+      safely("header", () => {
+        document.getElementById("island").textContent = s.island.name;
+        document.getElementById("now-island").textContent = s.island.name;
+        document.getElementById("mode").innerHTML = s.mode === "replay" ? "🎬 <b>Replay:</b> Beryl 2024" : "📡 <b>Live:</b> NHC feed";
+        document.getElementById("updated").textContent = !s.updatedAt ? ""
+          : s.mode === "replay" ? new Date(s.updatedAt).toUTCString().slice(5, 22) + " UTC"
+          : relTime(s.updatedAt);
+      });
+      safely("briefing", () => {
+        document.getElementById("briefing").textContent = sanitizeBriefing(s.briefing);
+        document.getElementById("briefing-source").textContent =
+          s.briefingSource === "claude" ? "✨ Written by Claude on Amazon Bedrock · level decided by deterministic engine" :
+          s.briefingSource === "template" ? "Standard guidance · level decided by deterministic engine" : "";
+      });
+      safely("replayLabel", () => { document.getElementById("replay-label").textContent = s.replayLabel ?? ""; });
+      safely("history", () => renderHistory(s));
+      safely("now", () => renderNow(s));
+      safely("thingsToDo", () => renderThingsToDo(s));
+      safely("forecast", () => renderForecast(s.outlook));
+      safely("rainWind", () => renderRainWind(s.outlook, s.weather));
+      safely("sea", () => renderSea(s.outlook));
+      safely("sunMoon", () => renderSunMoon(s.outlook));
+      safely("air", () => renderAir(s.outlook));
+      safely("tropical", () => renderTropical(s));
     }
 
     // Highlight the section nav link for whichever section is in view.
@@ -1076,6 +1121,17 @@
     document.addEventListener("click", (e) => {
       const btn = e.target.closest(".card-toggle");
       if (btn) setCardOpen(btn.closest(".card"), btn.getAttribute("aria-expanded") !== "true");
+    });
+    // Skip link (#100): focus main without touching location.hash, so no dead
+    // history entry and a reload keeps the current page. href="#main" stays as the no-JS fallback.
+    // Delegated at top level so a skip pressed before `load` isn't the native #main route.
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".skip-link")) return;
+      const main = document.getElementById("main");
+      if (!main) return; // let the native #main route proceed
+      e.preventDefault();
+      main.focus({ preventScroll: true });
+      main.scrollIntoView();
     });
     document.querySelectorAll('.card[data-start="closed"]').forEach((c) => setCardOpen(c, false));
     let curPage = "home";
@@ -1122,13 +1178,6 @@
     function setupRouter() {
       // Skip link (#100): focus main without touching location.hash, so no dead
       // history entry and a reload keeps the current page. href="#main" stays as the no-JS fallback.
-      const skip = document.querySelector(".skip-link");
-      if (skip) skip.addEventListener("click", (e) => {
-        e.preventDefault();
-        const main = document.getElementById("main");
-        main.focus({ preventScroll: true });
-        main.scrollIntoView();
-      });
       showPage(pageFromHash() ?? "home");
       window.addEventListener("hashchange", () => {
         // Back to the hash-less URL is Today; other unknown hashes (#main) are ignored.

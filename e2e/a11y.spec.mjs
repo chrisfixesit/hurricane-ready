@@ -369,7 +369,7 @@ const text = (loc) => loc.evaluate((el) => el.textContent.replace(/\s+/g, " ").t
 
 test("7-day cards expose the condition and High/low labels to screen readers", async ({ page }) => {
   const days = await loadForecast(page);
-  expect(await text(days.nth(1))).toMatch(/Showers\. High 31°\s*low 25°.*40% chance of rain.*35% chance of thunderstorms/);
+  expect(await text(days.nth(1))).toMatch(/Showers\. High 31°\s*low 25°.*40% chance of rain,.*35% chance of thunderstorms/);
   // the icon stays hidden from assistive tech
   await expect(days.first().locator(".ico")).toHaveAttribute("aria-hidden", "true");
 });
@@ -412,7 +412,7 @@ test("forecast cards expose condition and High/low in the accessibility tree", a
   await expect(page.locator("#hours .hr").first()).toMatchAriaSnapshot("- text: /10am Showers\\. .*40% chance of rain, wind 16 km\\/h/");
   await page.evaluate(() => { location.hash = "#forecast"; });
   await expect(days.nth(1)).toBeVisible();
-  await expect(days.nth(1)).toMatchAriaSnapshot("- text: /Showers\\. High 31° low 25° 40% chance of rain 35% chance of thunderstorms/");
+  await expect(days.nth(1)).toMatchAriaSnapshot("- text: /Showers\\. High 31° low 25° 40% chance of rain, 35% chance of thunderstorms/");
 });
 
 // (#111) the empty-state sentence sat inside the 520px-min table scroller and
@@ -522,7 +522,7 @@ test("initial load of /#storms sets title and aria-current without stealing focu
   await page.goto(BASE + "/#storms");
   await expectPage(page, "storms", /^Storms \| Bim Weather$/);
   // let the first status render (which re-asserts the page) settle
-  await page.waitForLoadState("networkidle");
+  await expect(page.locator("#banner-title")).not.toHaveText("Checking the skies…", { timeout: 15000 });
   expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
 });
 
@@ -719,4 +719,172 @@ test("storms table is visible in the initial HTML so a stale app.js cannot hide 
   await expect(page.locator("#storms-table")).toBeVisible();
   await expect(page.locator("#storms-body tr")).toBeVisible();
   await expect(page.locator("#storms-empty")).toBeHidden();
+});
+
+// (final review) storm-critical rendering must survive stale markup and schema
+// drift elsewhere in the payload: under-reporting a storm is the worst failure.
+const STORM = {
+  id: "al032026", name: "Cristobal", classification: "Hurricane", intensityKt: 80, lat: 14, lon: -55,
+  assessment: { level: "WATCH", distanceNowKm: 900, closestApproachKm: 60, closestApproachInHours: 30, method: "official-track", pass: { kind: "direct-hit-risk" } },
+};
+
+test("storm still renders on the map with stale markup lacking #storms-table/#storms-empty", async ({ page }) => {
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error" && /render failed/.test(m.text())) errors.push(m.text()); });
+  page.on("pageerror", (e) => errors.push(String(e)));
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await page.route("**/api/status", async (route) => {
+    await gate;
+    const res = await route.fetch();
+    await route.fulfill({ response: res, json: { ...(await res.json()), storms: [STORM] } });
+  });
+  await page.goto(BASE, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    // pre-#124 markup: the table body exists but the new ids don't
+    document.getElementById("storms-table").removeAttribute("id");
+    document.getElementById("storms-empty").remove();
+  });
+  release();
+  await expect(page.locator("#banner-title")).not.toHaveText("Checking the skies…", { timeout: 15000 });
+  await expect(page.locator("#storms-body tr")).toHaveCount(1);
+  await expect(page.locator(".leaflet-tooltip", { hasText: "Cristobal (80 kt)" })).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
+test("a throwing non-critical renderer does not hide an active storm", async ({ page }) => {
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  await page.route("**/api/status", async (route) => {
+    const res = await route.fetch();
+    // daily is truthy with a length, but its entries are null so renderForecast throws
+    await route.fulfill({ response: res, json: { ...(await res.json()), storms: [STORM], outlook: { daily: [null, null], hourly: "bad" } } });
+  });
+  await load(page, "light");
+  await expect(page.locator("#storms-body tr")).toHaveCount(1);
+  await expect(page.locator("#storms-empty")).toBeHidden();
+  await expect(page.locator(".leaflet-tooltip", { hasText: "Cristobal (80 kt)" })).toHaveCount(1);
+  expect(errors.some((e) => /render failed: forecast/.test(e))).toBe(true);
+});
+
+// the skip link must not take the native #main route when pressed before `load`.
+// An <img> added as soon as <body> exists and held by a route keeps `load`
+// pending, while the deferred app.js still runs at DOMContentLoaded.
+test("skip link pressed before load still uses the focus handler", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await page.route("**/__hold-load.png", async (route) => { await gate; await route.abort(); });
+  await page.addInitScript(() => {
+    new MutationObserver((_, obs) => {
+      if (!document.body) return;
+      obs.disconnect();
+      const img = document.createElement("img");
+      img.alt = "";
+      img.src = "/__hold-load.png";
+      img.hidden = true;
+      document.body.append(img);
+    }).observe(document, { childList: true, subtree: true });
+  });
+  try {
+    await page.goto(BASE, { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => window.scrollTo(0, 400));
+    expect(await page.evaluate(() => document.readyState)).not.toBe("complete");
+    await page.locator(".skip-link").focus();
+    const before = await page.evaluate(() => window.scrollY);
+    await page.keyboard.press("Enter");
+    expect(await page.evaluate(() => document.readyState)).not.toBe("complete");
+    expect(await page.evaluate(() => location.hash)).toBe("");
+    await expect(page.locator("main#main")).toBeFocused();
+    // scrollIntoView moved the page to main's top (less its scroll-margin), not just "somewhere"
+    const target = await page.evaluate(() => {
+      const m = document.getElementById("main");
+      return Math.max(0, m.getBoundingClientRect().top + window.scrollY - (parseFloat(getComputedStyle(m).scrollMarginTop) || 0));
+    });
+    expect(Math.abs(target - before)).toBeGreaterThan(5);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).not.toBe(before);
+    await expect.poll(() => page.evaluate((tg) => Math.abs(window.scrollY - tg), target)).toBeLessThanOrEqual(2);
+  } finally {
+    release();
+  }
+});
+
+// if renderStorms itself throws mid-way, an active storm must never be left
+// looking like "No active systems": a plain-language warning row replaces it.
+test("a throwing storms renderer leaves a visible warning, not the empty message", async ({ page }) => {
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  await page.route("**/api/status", async (route) => {
+    const res = await route.fetch();
+    // no assessment: the row builder dereferences st.assessment and throws
+    await route.fulfill({ response: res, json: { ...(await res.json()), storms: [{ id: "al042026", name: "Dolly", classification: "Hurricane", intensityKt: 70, lat: 14, lon: -55 }] } });
+  });
+  await load(page, "light");
+  await page.evaluate(() => { location.hash = "#storms"; });
+  const row = page.locator("#storms-body tr");
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("Storm details couldn't be shown");
+  await expect(row).toContainText("Dolly");
+  await expect(row.locator('a[href="https://www.nhc.noaa.gov"]')).toBeVisible();
+  await expect(page.locator("#storms-empty")).toBeHidden();
+  await expect(page.locator("#storms-table")).toBeVisible();
+  expect(errors.some((e) => /render failed: storms/.test(e))).toBe(true);
+});
+
+// every pre-storm block in render() (civil alert, header, banner, briefing…)
+// is isolated: one throwing must not stop the storm table or map updating.
+test("a throwing civil-alert block does not stop the storm row and map rendering", async ({ page }) => {
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await page.route("**/api/status", async (route) => {
+    await gate;
+    const res = await route.fetch();
+    await route.fulfill({ response: res, json: { ...(await res.json()), storms: [STORM], civilAlert: { active: true, count: 1 } } });
+  });
+  await page.goto(BASE, { waitUntil: "domcontentloaded" });
+  // stale cached markup without the civil banner: renderCivil throws on ca.hidden
+  await page.evaluate(() => document.getElementById("civil-alert").remove());
+  release();
+  await expect(page.locator("#storms-body tr")).toHaveCount(1, { timeout: 15000 });
+  await expect(page.locator("#storms-body tr")).toContainText("Cristobal");
+  await expect(page.locator("#storms-empty")).toBeHidden();
+  await expect(page.locator(".leaflet-tooltip", { hasText: "Cristobal (80 kt)" })).toHaveCount(1);
+  await expect(page.locator("#banner-title")).not.toHaveText("Checking the skies…");
+  expect(errors.some((e) => /render failed: civil/.test(e))).toBe(true);
+});
+
+// a failed arrival calculation must not leave a stale "winds arriving" warning up.
+// Service workers blocked: the SW would serve the second poll, bypassing page.route.
+test.describe(() => {
+  test.use({ serviceWorkers: "block" });
+  test("a throwing arrival calculation clears the stale arrival note", async ({ page }) => {
+    const errors = [];
+    page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+    let calls = 0;
+    await page.route("**/api/status", async (route) => {
+      const res = await route.fetch();
+      const json = await res.json();
+      calls++;
+      const storm = calls === 1
+        // centred on the island with a 34-kt field: "arriving now"
+        ? { ...STORM, lat: json.island.lat, lon: json.island.lon, radii34Km: 200 }
+        // forecastPoints is not iterable, so windsArrival throws
+        : { ...STORM, forecastPoints: 5 };
+      await route.fulfill({ response: res, json: { ...json, storms: [storm] } });
+    });
+    await load(page, "light");
+    await page.evaluate(() => { location.hash = "#storms"; });
+    const note = page.locator("#arrival-note");
+    await expect(note).toBeVisible();
+    await expect(note).toContainText("Cristobal");
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    await expect.poll(() => calls).toBeGreaterThanOrEqual(2);
+    await expect(note).toBeHidden();
+    await expect(page.locator("#storms-body tr")).toHaveCount(1);
+    await expect(page.locator("#storms-body tr")).toContainText("Cristobal");
+    await expect(page.locator("#storms-empty")).toBeHidden();
+    expect(errors.some((e) => /render failed: arrival/.test(e))).toBe(true);
+  });
 });
