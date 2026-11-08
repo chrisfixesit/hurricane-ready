@@ -269,10 +269,15 @@
       map = L.map("map", { zoomControl: false }).setView([island.lat, island.lon], 6);
       const carto = L.tileLayer(`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, {
         attribution: "&copy; OpenStreetMap contributors &copy; CARTO", maxZoom: 19,
+        // Both tile hosts check the Referer (CARTO's key is locked to our
+        // domain; OpenStreetMap's usage policy expects one), so send our origin
+        // explicitly rather than relying on the page-wide Referrer-Policy.
+        referrerPolicy: "strict-origin-when-cross-origin",
       }).addTo(map);
-      // If CARTO refuses our tiles (403 off our domain, e.g. localhost, or a
-      // browser that strips the Referer), swap once to OpenStreetMap's own
-      // tiles, darkened in CSS to match. Radar and storms draw on top either way.
+      // If CARTO refuses our tiles (403 off our domain, e.g. localhost), swap
+      // once to OpenStreetMap's own tiles, darkened in CSS to match. Radar and
+      // storms draw on top either way. A browser or extension that strips the
+      // Referer entirely may be refused by both; that's no worse than before.
       let cartoOk = false, cartoErrors = 0, swapped = false;
       carto.on("tileload", () => { cartoOk = true; });
       carto.on("tileerror", () => {
@@ -281,6 +286,7 @@
         map.removeLayer(carto);
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
           attribution: "&copy; OpenStreetMap contributors", maxZoom: 19, className: "basemap-fallback",
+          referrerPolicy: "strict-origin-when-cross-origin",
         }).addTo(map);
       });
       layerGroup = L.layerGroup().addTo(map);
