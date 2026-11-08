@@ -97,7 +97,7 @@
     :root[data-theme="light"] .ALL_CLEAR .b-title, :root[data-theme="light"] .chip.ALL_CLEAR, :root[data-theme="light"] .chance.low { color: #15803d; }
     :root[data-theme="light"] .WATCH .b-title, :root[data-theme="light"] .chip.WATCH, :root[data-theme="light"] .uv.moderate, :root[data-theme="light"] .chance.medium { color: #a16207; }
     :root[data-theme="light"] .WARNING .b-title, :root[data-theme="light"] .chip.WARNING, :root[data-theme="light"] .uv.high { color: #9a3412; } /* (#105) darker for 4.5:1 on the warning tint */
-    :root[data-theme="light"] .IMMINENT .b-title, :root[data-theme="light"] .chip.IMMINENT, :root[data-theme="light"] .chance.high, :root[data-theme="light"] .name-chip.active, :root[data-theme="light"] .emerg-num b { color: #b91c1c; }
+    :root[data-theme="light"] .IMMINENT .b-title, :root[data-theme="light"] .chip.IMMINENT, :root[data-theme="light"] .pass-close, :root[data-theme="light"] .chance.high, :root[data-theme="light"] .name-chip.active, :root[data-theme="light"] .emerg-num b { color: #b91c1c; }
     :root[data-theme="light"] .civil-alert .ca-text, :root[data-theme="light"] .civil-alert .ca-arrow { color: #b91c1c; }
     :root[data-theme="light"] .civil-alert .ca-text b { color: #7f1d1d; }
     :root[data-theme="light"] .uv.low, :root[data-theme="light"] .chance.low { color: #14532d; }
@@ -150,6 +150,7 @@
     .nav-ico, .dv-ico, .todo-ico, .adv-ico, .ca-ico, .s-ico { display: inline-flex; align-items: center; justify-content: center; }
     .todo-ico { color: var(--accent); }
     section[id] { scroll-margin-top: 70px; }
+    .card-toggle { scroll-margin-top: 70px; scroll-margin-bottom: 1rem; } /* focus ring stays clear of the sticky nav and the fold (#104) */
 
     /* Barbados navy masthead with a gold underline (alpha.gov.bb feel). */
     header { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
@@ -413,6 +414,7 @@
     .chip.WATCH { background: var(--watch-soft); color: #fde047; }
     .chip.WARNING { background: var(--warning-soft); color: #fdba74; }
     .chip.IMMINENT { background: var(--imminent-soft); color: #fca5a5; }
+    .pass-close { color: #fca5a5; }
     .empty { margin: 0; padding: 1.6rem 1.1rem; text-align: center; color: var(--muted); font-size: 0.9rem; }
     .empty .sun { font-size: 1.6rem; display: block; margin-bottom: 0.3rem; }
 
@@ -443,9 +445,10 @@
     .tropical-src a { color: var(--accent); }
 
     /* Season names */
-    .names { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.3rem 1.1rem 1.1rem; }
+    .names { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0.3rem 1.1rem 1.1rem; list-style: none; }
     .name-chip { font-size: 0.8rem; padding: 0.22rem 0.6rem; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); background: var(--card-2); }
-    .name-chip.used { opacity: 0.45; text-decoration: line-through; }
+    .name-chip.used { text-decoration: line-through; } /* no opacity: it dropped the muted text below AA (#108) */
+    .name-tag { margin-left: 0.3rem; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
     .name-chip.active { background: var(--imminent-soft); border-color: rgba(239,68,68,0.5); color: #fca5a5; font-weight: 700; }
     .name-chip.next { background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.5); color: var(--accent); font-weight: 700; }
 
@@ -511,7 +514,7 @@
       <span class="pill" id="mode"></span>
       <span class="pill" id="updated"></span>
       <div class="settings-wrap">
-        <button id="settings-btn" class="settings-btn" type="button" aria-label="Settings" aria-expanded="false" aria-haspopup="true" aria-controls="settings-panel"><span class="ico" data-icon="settings"></span></button>
+        <button id="settings-btn" class="settings-btn" type="button" aria-label="Settings" aria-expanded="false" aria-haspopup="dialog" aria-controls="settings-panel"><span class="ico" data-icon="settings"></span></button>
         <div id="settings-panel" class="settings-panel" role="dialog" aria-label="Settings" hidden>
           <label>Temperature
             <select id="set-temp"><option value="C">°C</option><option value="F">°F</option></select>
@@ -526,6 +529,7 @@
       </div>
     </header>
 
+    <section class="status-region" aria-label="Alerts and status">
     <a id="civil-alert" class="civil-alert" href="https://brb-secondary.capews.com/capews/public/active" target="_blank" rel="noopener" aria-live="assertive" aria-atomic="true" hidden>
       <span class="ca-ico" aria-hidden="true" data-icon="siren"></span>
       <span class="ca-text" id="civil-text"></span>
@@ -562,6 +566,7 @@
       <span class="adv-text">Beyond hurricanes, <b>Barbados Met Services</b> issues local advisories — small-craft, heavy-rain/flood, dust. Tap to check what's in effect now.</span>
       <span class="adv-arrow" aria-hidden="true">→</span>
     </a>
+    </section>
 
     <div class="layout">
     <nav class="section-nav" aria-label="Sections">
@@ -643,9 +648,9 @@
       <section class="card" id="radar" data-page="radar" data-start="closed">
         <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="radar-card-body"><span class="sum-t"><span class="ico" data-icon="radar"></span> Rain radar &amp; satellite</span><span class="chev" aria-hidden="true">▾</span></button></h2>
         <div class="card-body" id="radar-card-body">
-        <div id="map" aria-label="Live rain radar and active storms near Barbados"></div>
+        <div id="map" role="region" aria-label="Live rain radar and active storms near Barbados"></div>
         <div class="radar-bar">
-          <button id="radar-toggle" type="button" aria-label="Play or pause radar animation">▶ Play radar</button>
+          <button id="radar-toggle" type="button"><span aria-hidden="true">▶</span> Play radar</button>
           <span id="radar-time">—</span>
           <span style="margin-left:auto">Rain radar: RainViewer</span>
         </div>
@@ -668,7 +673,7 @@
             <span class="sat-pin" id="sat-pin" aria-hidden="true"><span class="sat-dot"></span>Barbados</span>
           </div>
           <div class="sat-bar">
-            <button id="sat-toggle" type="button" aria-label="Play or pause satellite loop">▶ Play loop</button>
+            <button id="sat-toggle" type="button"><span aria-hidden="true">▶</span> Play loop</button>
             <span id="sat-time"></span>
             <span style="margin-left:auto">Satellite: NOAA GOES-East · GeoColor</span>
           </div>
@@ -718,8 +723,8 @@
         <p class="tropical-src" id="tropical-src"></p>
 
         <h3><span class="ico" data-icon="tags"></span> This season's storm names</h3>
-        <p class="hist-intro">Atlantic storms are named in order as they form. Active and used names are highlighted.</p>
-        <div class="names" id="season-names"></div>
+        <p class="hist-intro">Atlantic storms are named in order as they form. Each name is marked as active, next or used.</p>
+        <ul class="names" id="season-names" role="list"></ul>
 
         <h3><span class="ico" data-icon="lightbulb"></span> What the levels mean</h3>
         <div class="legend">
