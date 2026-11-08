@@ -88,8 +88,13 @@ self.addEventListener("fetch", (e) => {
     // still lands in the cache for next time even after we've answered.
     e.waitUntil(network);
     // On a slow connection (likely in a storm), don't hold the dashboard for
-    // more than 3s: use the cached script then, if there is one.
-    const slow = new Promise((res) => setTimeout(res, 3000))
+    // more than 3s: use the cached script then, if there is one. That copy can
+    // be one deploy behind the page, so index.html and app.js must stay
+    // compatible across one deploy (render() already tolerates a partial
+    // status). The timer is cleared once the network settles.
+    let timer;
+    network.finally(() => clearTimeout(timer));
+    const slow = new Promise((res) => { timer = setTimeout(res, 3000); })
       .then(() => caches.match(req))
       .then((c) => c || network);
     e.respondWith(
