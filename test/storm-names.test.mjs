@@ -58,6 +58,16 @@ test("fetchSeasonNames: uses NHC's page, cached for a day", async (t) => {
   assert.equal(calls, 1);
 });
 
+test("fetchSeasonNames: prefers this year's own column over its rotation twin", async (t) => {
+  // A page that has rolled forward to show 2032 as well as 2026.
+  const extra = PAGE
+    .replace('<th id="a6">2031</th>', '<th id="a6">2031</th>\n<th id="a7">2032</th>')
+    .replace(/(Wendy\s*<\/td>)/, "$1\n<td>" + ATLANTIC_LISTS[2026].map((n) => (n === "Kyle" ? "Kylie" : n)).join("<br>\n") + "</td>");
+  t.mock.method(globalThis, "fetch", async () => new Response(extra, { status: 200 }));
+  assert.equal((await fetchSeasonNames({ year: 2032, now: 4e12, fresh: true }))[10], "Kylie");
+  assert.equal((await fetchSeasonNames({ year: 2026, now: 4e12, fresh: true }))[10], "Kyle");
+});
+
 test("fetchSeasonNames: keeps the last good list when the page breaks", async (t) => {
   t.mock.method(console, "warn", () => {});
   t.mock.method(globalThis, "fetch", async () => new Response(PAGE.replace("Kyle<br>", "Kylie<br>"), { status: 200 }));

@@ -81,7 +81,9 @@ export async function fetchSeasonNames({ year = new Date().getUTCFullYear(), now
     });
     if (!res.ok) throw new Error(`names page ${res.status}`);
     const lists = parseNamesPage(await res.text());
-    const key = lists && Object.keys(lists).map(Number).find((y) => sameRotation(y, year));
+    // This year's own column if the page has one, else its rotation twin.
+    const years = lists ? Object.keys(lists).map(Number) : [];
+    const key = years.find((y) => y === year) ?? years.find((y) => sameRotation(y, year));
     const names = key && lists[key];
     if (!looksLikeList(names)) throw new Error("names page layout not recognised");
     namesCache = { year, at: now, names };
