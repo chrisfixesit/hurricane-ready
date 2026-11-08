@@ -114,13 +114,59 @@ export async function fetchTropicalOutlook() {
   }
 }
 
-// Index (1-based count) of the highest-numbered active storm, used to mark
-// which names have been reached this season. e.g. id "al012026" -> 1.
+// How far down this season's list we've got: the 1-based position of the
+// latest list name seen. Matching on names (not "al05"-style numbers) keeps
+// unnamed depressions, which take a number but no name, from skewing it.
+function namesReached(names) {
+  let reached = 0;
+  for (const n of names) {
+    const i = ATLANTIC_NAMES_2026.findIndex((x) => x.toUpperCase() === String(n).toUpperCase());
+    reached = Math.max(reached, i + 1);
+  }
+  return reached;
+}
+
+// Names reached by the storms active right now. Only covers live storms, so
+// the season-wide count comes from fetchSeasonNamesUsed below.
 export function stormsSoFar(storms) {
-  return (storms ?? []).reduce((max, s) => {
-    const m = /^al(\d{2})/i.exec(s.id ?? "");
-    return m ? Math.max(max, Number(m[1])) : max;
-  }, 0);
+  return namesReached((storms ?? []).map((s) => s.name ?? ""));
+}
+
+// NHC's ATCF storm index lists every system it has tracked, one CSV row each:
+// name, basin, ..., number, year, ..., type (WARNING for real storms, plus
+// GENESIS/METWATCH rows for invests). It keeps finished storms, so it gives
+// the whole season's names, not just what's active.
+const STORM_INDEX_URL = "https://ftp.nhc.noaa.gov/atcf/index/storm_list.txt";
+const STORM_INDEX_TTL_MS = 60 * 60 * 1000; // ~290 KB; storms form over days, not minutes
+
+export function parseSeasonIndex(text, year) {
+  const names = [];
+  for (const line of text.split("\n")) {
+    const f = line.split(",").map((x) => x.trim());
+    if (f[1] === "AL" && f[8] === String(year) && f[18] === "WARNING") names.push(f[0]);
+  }
+  return namesReached(names);
+}
+
+let seasonCache = null; // { year, at, value }
+
+// Count of this season's names used so far, or null if NHC can't be reached
+// (callers keep their last known count). Cached for an hour.
+export async function fetchSeasonNamesUsed({ year = new Date().getUTCFullYear(), now = Date.now(), fresh = false } = {}) {
+  if (!fresh && seasonCache?.year === year && now - seasonCache.at < STORM_INDEX_TTL_MS) return seasonCache.value;
+  try {
+    const res = await fetch(STORM_INDEX_URL, {
+      headers: { "User-Agent": "hurricane-ready (github.com/chrisfixesit/hurricane-ready)" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) throw new Error(`storm index ${res.status}`);
+    const value = parseSeasonIndex(await res.text(), year);
+    seasonCache = { year, at: now, value };
+    return value;
+  } catch (err) {
+    console.warn(`NHC storm index unavailable (${err.message})`);
+    return null;
+  }
 }
 
 // ---------- Tropical waves (NHC Tropical Weather Discussion) ----------
