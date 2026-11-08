@@ -54,10 +54,13 @@ self.addEventListener("activate", (e) => {
   })());
 });
 
-function cacheCopy(req, res) {
+// Saves a copy of a good response. The write is handed to e.waitUntil so the
+// worker isn't stopped mid-write; a failed write is ignored, never replacing
+// the network response the page already has.
+function cacheCopy(req, res, e) {
   if (res && res.ok) {
     const copy = res.clone();
-    caches.open(CACHE).then((c) => c.put(req, copy));
+    e.waitUntil(caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {}));
   }
   return res;
 }
@@ -69,7 +72,7 @@ self.addEventListener("fetch", (e) => {
 
   // Live data: network-first so it's fresh online, last-saved when offline.
   if (url.pathname === "/api/status") {
-    e.respondWith(fetch(req).then((r) => cacheCopy(req, r)).catch(() => caches.match(req)));
+    e.respondWith(fetch(req).then((r) => cacheCopy(req, r, e)).catch(() => caches.match(req)));
     return;
   }
   // Page navigations and app.js: network-first, so a deploy reaches open
@@ -80,21 +83,21 @@ self.addEventListener("fetch", (e) => {
     // to the cached script on any non-OK response too, not only when offline.
     e.respondWith(
       fetch(req)
-        .then((r) => (r.ok ? cacheCopy(req, r) : caches.match(req).then((c) => c || r)))
+        .then((r) => (r.ok ? cacheCopy(req, r, e) : caches.match(req).then((c) => c || r)))
         .catch(() => caches.match(req))
     );
     return;
   }
   if (req.mode === "navigate") {
     e.respondWith(
-      fetch(req).then((r) => cacheCopy(req, r))
+      fetch(req).then((r) => cacheCopy(req, r, e))
         .catch(() => caches.match(req).then((r) => r || caches.match("/index.html")))
     );
     return;
   }
   // Other same-origin assets: cache-first.
   if (url.origin === self.location.origin) {
-    e.respondWith(caches.match(req).then((c) => c || fetch(req).then((r) => cacheCopy(req, r))));
+    e.respondWith(caches.match(req).then((c) => c || fetch(req).then((r) => cacheCopy(req, r, e))));
   }
   // Cross-origin (map tiles, satellite) fall through to the network.
 });
