@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fetchGoogleHourly, mergeHourly, _resetGoogleCache } from "../src/google-weather.mjs";
+import { fetchGoogleHourly, mergeHourly, fetchGoogleDaily, mergeDaily, _resetGoogleCache } from "../src/google-weather.mjs";
 
 const island = { lat: 13.19, lon: -59.54 };
 
@@ -164,11 +164,13 @@ function stubFetch({ googleOk }) {
       weather_code: times.map(() => 80), uv_index: times.map(() => 1) },
   };
   const google = { forecastHours: [hour(new Date(start).toISOString(), 60, 45)] };
+  const googleDays = { forecastDays: [day("2026-11-06", 35, 70, 10, 40)] };
   return async (url) => {
     const u = String(url);
     if (u.includes("weather.googleapis.com")) {
       if (!googleOk) throw new Error("down");
-      return { ok: true, status: 200, json: async () => google };
+      const body = u.includes("days:lookup") ? googleDays : google;
+      return { ok: true, status: 200, json: async () => body };
     }
     if (u.includes("api.open-meteo.com")) return { ok: true, status: 200, json: async () => forecast };
     return { ok: false, status: 503, json: async () => ({}) }; // marine/air: not under test
@@ -199,4 +201,97 @@ test("fetchOutlook: Google down → Open-Meteo values, open-meteo source", async
   assert.equal(o.sources.rain, "open-meteo");
   assert.equal(o.hourly[0].rainProb, 5);
   assert.equal(o.hourly[0].thunderProb, null);
+});
+
+// ---- daily: forecast/days:lookup for the 7-day cards ----
+
+// Trimmed shape of a forecast/days:lookup response.
+const half = (rain, thunder) => ({
+  precipitation: { probability: { type: "RAIN", percent: rain } },
+  thunderstormProbability: thunder,
+});
+function day(date, dayRain, nightRain, dayThunder, nightThunder) {
+  const [year, month, d] = date.split("-").map(Number);
+  return {
+    displayDate: { year, month, day: d },
+    daytimeForecast: half(dayRain, dayThunder),
+    nighttimeForecast: half(nightRain, nightThunder),
+  };
+}
+const daysBody = {
+  forecastDays: [day("2026-11-06", 35, 70, 10, 40), day("2026-11-07", 20, 10, 0, 0)],
+};
+
+test("daily: keyed by local date, chance = the wetter of day and night", async () => {
+  _resetGoogleCache();
+  const f = okFetch(daysBody);
+  const byDate = await fetchGoogleDaily(island, "k", { fetchImpl: f });
+  assert.match(f.calls[0], /forecast\/days:lookup/);
+  assert.match(f.calls[0], /days=7/);
+  assert.deepEqual(byDate.get("2026-11-06"), { rainProb: 70, thunderProb: 40 });
+  assert.deepEqual(byDate.get("2026-11-07"), { rainProb: 20, thunderProb: 0 });
+});
+
+test("daily: one half missing → uses the other; both missing → null", async () => {
+  _resetGoogleCache();
+  const body = { forecastDays: [
+    { displayDate: { year: 2026, month: 11, day: 6 }, daytimeForecast: half(30, 5) },
+    { displayDate: { year: 2026, month: 11, day: 7 }, daytimeForecast: half(150, -1), nighttimeForecast: {} },
+  ] };
+  const byDate = await fetchGoogleDaily(island, "k", { fetchImpl: okFetch(body) });
+  assert.deepEqual(byDate.get("2026-11-06"), { rainProb: 30, thunderProb: 5 });
+  assert.deepEqual(byDate.get("2026-11-07"), { rainProb: null, thunderProb: null });
+});
+
+test("daily and hourly cache separately (one doesn't serve the other)", async () => {
+  _resetGoogleCache();
+  const f = okFetch(daysBody);
+  await fetchGoogleDaily(island, "k", { fetchImpl: f });
+  const h = await fetchGoogleHourly(island, "k", { fetchImpl: okFetch(googleBody) });
+  assert.equal(h.size, 3);
+  await fetchGoogleDaily(island, "k", { fetchImpl: f });
+  assert.equal(f.calls.length, 1, "daily served from its own cache");
+});
+
+test("daily failure backs off without blocking hourly", async () => {
+  _resetGoogleCache();
+  const warn = console.warn; console.warn = () => {};
+  try {
+    const down = async () => { throw new Error("down"); };
+    assert.equal(await fetchGoogleDaily(island, "k", { fetchImpl: down }), null);
+    const h = await fetchGoogleHourly(island, "k", { fetchImpl: okFetch(googleBody) });
+    assert.equal(h.size, 3);
+  } finally { console.warn = warn; }
+});
+
+test("mergeDaily: Google chance per matched date, others keep Open-Meteo", () => {
+  const om = [{ date: "2026-11-06", rainProb: 90 }, { date: "2026-11-08", rainProb: 15 }];
+  const byDate = new Map([["2026-11-06", { rainProb: 70, thunderProb: 40 }]]);
+  const { daily, rainSource } = mergeDaily(om, byDate);
+  assert.deepEqual(daily[0], { date: "2026-11-06", rainProb: 70, thunderProb: 40 });
+  assert.deepEqual(daily[1], { date: "2026-11-08", rainProb: 15, thunderProb: null });
+  assert.equal(rainSource, "google");
+});
+
+test("mergeDaily: no Google data → unchanged, source open-meteo", () => {
+  const om = [{ date: "2026-11-06", rainProb: 90 }];
+  const { daily, rainSource } = mergeDaily(om, null);
+  assert.deepEqual(daily[0], { date: "2026-11-06", rainProb: 90, thunderProb: null });
+  assert.equal(rainSource, "open-meteo");
+});
+
+test("fetchOutlook: 7-day cards take Google's daily chance and are attributed", async () => {
+  _resetGoogleCache();
+  const o = await withFetch(() => fetchOutlook(island, { googleKey: "k" }), stubFetch({ googleOk: true }));
+  assert.equal(o.sources.dailyRain, "google");
+  assert.equal(o.daily[0].rainProb, 70);
+  assert.equal(o.daily[0].thunderProb, 40);
+});
+
+test("fetchOutlook: Google down → 7-day cards stay Open-Meteo", async () => {
+  _resetGoogleCache();
+  const o = await withFetch(() => fetchOutlook(island, { googleKey: "k" }), stubFetch({ googleOk: false }));
+  assert.equal(o.sources.dailyRain, "open-meteo");
+  assert.equal(o.daily[0].rainProb, 20);
+  assert.equal(o.daily[0].thunderProb, null);
 });

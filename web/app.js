@@ -489,13 +489,17 @@
     function renderForecast(o) {
       const wrap = document.getElementById("days");
       const age = document.getElementById("forecast-age");
-      age.textContent = o && o.generatedAt ? "Updated " + agoText(o.generatedAt) + " · Open-Meteo" : "";
+      const googleDaily = !!(o && o.sources && o.sources.dailyRain === "google");
+      age.textContent = o && o.generatedAt ? "Updated " + agoText(o.generatedAt) + (googleDaily ? " · Open-Meteo, rain chance Google" : " · Open-Meteo") : "";
+      // Google's chances require attribution wherever they appear.
+      document.getElementById("forecast-attribution").hidden = !googleDaily;
       if (!o || !o.daily || !o.daily.length) { wrap.innerHTML = '<p class="summary">Forecast unavailable right now.</p>'; document.getElementById("forecast-summary").textContent = ""; return; }
       wrap.innerHTML = o.daily.map((d, idx) => {
         const dow = idx === 0 ? "Today" : islandDOW(d.date);
         const rain = d.rainProb != null ? `<div class="rain" title="Chance of rain">💧 ${d.rainProb}%</div>` : "";
+        const thunder = (d.thunderProb ?? 0) >= 30 ? `<div class="th" title="Chance of thunderstorms">⚡ ${d.thunderProb}%</div>` : "";
         return `<div class="day"><div class="dow">${dow}</div><div class="ico" aria-hidden="true">${icon(d.code)}</div>
-          <div><span class="hi">${fmtDeg(d.maxC)}</span> <span class="lo">${fmtDeg(d.minC)}</span></div>${rain}</div>`;
+          <div><span class="hi">${fmtDeg(d.maxC)}</span> <span class="lo">${fmtDeg(d.minC)}</span></div>${rain}${thunder}</div>`;
       }).join("");
       const wet = o.daily.filter(d => (d.rainProb ?? 0) >= 50).length;
       const hi = Math.max(...o.daily.map(d => d.maxC));
