@@ -20,7 +20,10 @@ self.addEventListener("install", (e) => {
   // No skipWaiting here (#50): a new SW now waits until the client opts in
   // via the update toast (postMessage SKIP_WAITING), so mid-session users
   // are not forced onto a fresh controller without warning.
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
+  // cache: "reload" skips the browser's HTTP cache, so the new SW stores the
+  // files this deploy actually serves, not a copy from an older max-age.
+  e.waitUntil(caches.open(CACHE).then((c) =>
+    c.addAll(SHELL.map((u) => new Request(u, { cache: "reload" })))));
 });
 
 // Client-driven activation. The client posts SKIP_WAITING after the user
@@ -30,12 +33,25 @@ self.addEventListener("message", (e) => {
   if (e.data && e.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
+// Carry the last saved /api/status into the new cache before the old ones go,
+// so a visitor who updates while offline still sees their last weather and
+// threat level.
+async function keepSavedStatus(oldKeys) {
+  const cache = await caches.open(CACHE);
+  if (await cache.match("/api/status")) return;
+  for (const k of oldKeys) {
+    const saved = await (await caches.open(k)).match("/api/status");
+    if (saved) { await cache.put("/api/status", saved); return; }
+  }
+}
+
 self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
+  e.waitUntil((async () => {
+    const old = (await caches.keys()).filter((k) => k !== CACHE);
+    await keepSavedStatus(old);
+    await Promise.all(old.map((k) => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
 
 function cacheCopy(req, res) {
@@ -56,7 +72,13 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(fetch(req).then((r) => cacheCopy(req, r)).catch(() => caches.match(req)));
     return;
   }
-  // Page navigations: network-first, fall back to the cached shell offline.
+  // Page navigations and app.js: network-first, so a deploy reaches open
+  // clients (the server sends app.js no-cache, usually a cheap 304); fall back
+  // to the cached copy offline. app.js has to move with the page that loads it.
+  if (url.pathname === "/app.js") {
+    e.respondWith(fetch(req).then((r) => cacheCopy(req, r)).catch(() => caches.match(req)));
+    return;
+  }
   if (req.mode === "navigate") {
     e.respondWith(
       fetch(req).then((r) => cacheCopy(req, r))
