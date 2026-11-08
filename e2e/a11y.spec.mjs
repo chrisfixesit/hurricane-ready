@@ -174,8 +174,10 @@ const OUTLOOK = {
     date: `2026-11-${String(9 + i).padStart(2, "0")}`, code: 81, description: "Showers",
     maxC: 31, minC: 25, rainProb: 40, thunderProb: 35,
   })),
+  // explicit island offset: hourLabel() formats in America/Barbados, so a naive
+  // timestamp would read differently depending on the runner's timezone
   hourly: Array.from({ length: 4 }, (_, i) => ({
-    time: `2026-11-09T${String(10 + i).padStart(2, "0")}:00`, code: 81, description: "Showers",
+    time: `2026-11-09T${String(10 + i).padStart(2, "0")}:00-04:00`, code: 81, description: "Showers",
     rainProb: 40, windKmh: 16, gustKmh: 20, thunderProb: 0,
   })),
   sources: {},
