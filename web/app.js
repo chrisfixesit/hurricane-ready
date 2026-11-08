@@ -267,9 +267,22 @@
     function initMap(island) {
       mapIsland = island;
       map = L.map("map", { zoomControl: false }).setView([island.lat, island.lon], 6);
-      L.tileLayer(`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, {
+      const carto = L.tileLayer(`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, {
         attribution: "&copy; OpenStreetMap contributors &copy; CARTO", maxZoom: 19,
       }).addTo(map);
+      // If CARTO refuses our tiles (403 off our domain, e.g. localhost, or a
+      // browser that strips the Referer), swap once to OpenStreetMap's own
+      // tiles, darkened in CSS to match. Radar and storms draw on top either way.
+      let cartoOk = false, cartoErrors = 0, swapped = false;
+      carto.on("tileload", () => { cartoOk = true; });
+      carto.on("tileerror", () => {
+        if (cartoOk || swapped || ++cartoErrors < 3) return;
+        swapped = true;
+        map.removeLayer(carto);
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap contributors", maxZoom: 19, className: "basemap-fallback",
+        }).addTo(map);
+      });
       layerGroup = L.layerGroup().addTo(map);
       setupRadar();
     }

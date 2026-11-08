@@ -345,6 +345,8 @@
 
     /* Map / radar */
     #map { height: 360px; background: var(--card-2); }
+    /* OpenStreetMap fallback tiles are light; invert them to sit with the dark theme. */
+    .basemap-fallback { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.85); }
     @media (max-width: 720px) { #map { height: 280px; } }
 
     /* Mobile: comfortable tap targets + a little more breathing room. */
