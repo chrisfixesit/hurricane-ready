@@ -267,9 +267,31 @@
     function initMap(island) {
       mapIsland = island;
       map = L.map("map", { zoomControl: false }).setView([island.lat, island.lon], 6);
-      L.tileLayer(`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, {
+      const carto = L.tileLayer(`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, {
         attribution: "&copy; OpenStreetMap contributors &copy; CARTO", maxZoom: 19,
+        // Both tile hosts check the Referer (CARTO's key is locked to our
+        // domain; OpenStreetMap's usage policy expects one), so send our origin
+        // explicitly rather than relying on the page-wide Referrer-Policy.
+        referrerPolicy: "strict-origin-when-cross-origin",
       }).addTo(map);
+      // If CARTO refuses our tiles (403 off our domain, e.g. localhost), swap
+      // once to OpenStreetMap's own tiles, darkened in CSS to match. Radar and
+      // storms draw on top either way. A browser or extension that strips the
+      // Referer entirely may be refused by both; that's no worse than before.
+      // Judged per loading cycle (each pan/zoom starts one): a tile or two
+      // served from cache mustn't hide the rest of the view failing.
+      let loads = 0, errors = 0, swapped = false;
+      carto.on("loading", () => { loads = 0; errors = 0; });
+      carto.on("tileload", () => { loads++; });
+      carto.on("tileerror", () => {
+        if (swapped || ++errors < 3 || errors <= loads) return;
+        swapped = true;
+        map.removeLayer(carto);
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap contributors", maxZoom: 19, className: "basemap-fallback",
+          referrerPolicy: "strict-origin-when-cross-origin",
+        }).addTo(map);
+      });
       layerGroup = L.layerGroup().addTo(map);
       setupRadar();
     }
@@ -524,14 +546,14 @@
       const wrap = document.getElementById("days");
       const age = document.getElementById("forecast-age");
       const googleDaily = !!(o && o.sources && o.sources.dailyRain === "google");
-      age.textContent = o && o.generatedAt ? "Updated " + agoText(o.generatedAt) + (googleDaily ? " · Open-Meteo, rain chance Google" : " · Open-Meteo") : "";
+      age.textContent = o && o.generatedAt ? "Updated " + agoText(o.generatedAt) + (googleDaily ? " · Open-Meteo and Google" : " · Open-Meteo") : "";
       // Google's chances require attribution wherever they appear.
       document.getElementById("forecast-attribution").hidden = !googleDaily;
       if (!o || !o.daily || !o.daily.length) { wrap.innerHTML = '<p class="summary">Forecast unavailable right now.</p>'; document.getElementById("forecast-summary").textContent = ""; return; }
       wrap.innerHTML = o.daily.map((d, idx) => {
         const dow = idx === 0 ? "Today" : islandDOW(d.date);
-        const rain = d.rainProb != null ? `<div class="rain" title="Chance of rain">💧 ${d.rainProb}%</div>` : "";
-        const thunder = (d.thunderProb ?? 0) >= 30 ? `<div class="th" title="Chance of thunderstorms">⚡ ${d.thunderProb}%</div>` : "";
+        const rain = d.rainProb != null ? rainChance("rain", d.rainProb) : "";
+        const thunder = thunderChance(d.thunderProb);
         return `<div class="day"><div class="dow">${dow}</div><div class="ico" aria-hidden="true">${icon(d.code)}</div>
           <div><span class="hi">${fmtDeg(d.maxC)}</span> <span class="lo">${fmtDeg(d.minC)}</span></div>${rain}${thunder}</div>`;
       }).join("");
@@ -547,6 +569,15 @@
       document.getElementById("forecast-summary").innerHTML = `<span class="lead">${lead}</span>${rest}`;
     }
 
+    // Rain and thunder chances for the hourly strip and 7-day cards. The emoji
+    // are hidden from screen readers and replaced with words, because a title
+    // attribute alone often isn't announced.
+    const rainChance = (cls, pct) =>
+      `<div class="${cls}" title="Chance of rain"><span aria-hidden="true">💧</span> ${pct}%<span class="sr-only"> chance of rain</span></div>`;
+    const thunderChance = (pct) => (pct ?? 0) >= 30
+      ? `<div class="th" title="Chance of thunderstorms"><span aria-hidden="true">⚡</span> ${pct}%<span class="sr-only"> chance of thunderstorms</span></div>`
+      : "";
+
     function renderRainWind(o, w) {
       const wrap = document.getElementById("hours");
       const sum = document.getElementById("rainwind-summary");
@@ -554,7 +585,7 @@
       const h = o.hourly;
       wrap.innerHTML = h.map(x => `
         <div class="hr"><div class="t">${hourLabel(x.time)}</div><div class="ico" aria-hidden="true">${icon(x.code)}</div>
-          <div class="r" title="Chance of rain">💧 ${x.rainProb ?? 0}%</div>${(x.thunderProb ?? 0) >= 30 ? `<div class="th" title="Chance of thunderstorms">⚡ ${x.thunderProb}%</div>` : ""}<div class="w">${fromKmh(x.windKmh)} ${wUnit()}</div></div>`).join("");
+          ${rainChance("r", x.rainProb ?? 0)}${thunderChance(x.thunderProb)}<div class="w">${fromKmh(x.windKmh)} ${wUnit()}</div></div>`).join("");
       // Google's chances require attribution wherever they appear.
       document.getElementById("rain-attribution").hidden = !(o.sources && o.sources.rain === "google");
       let peak = h[0];
