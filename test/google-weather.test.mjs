@@ -321,3 +321,9 @@ test("merge: an entry with neither chance usable counts as no Google data", () =
   assert.equal(hourly[0].thunderProb, null);
   assert.equal(rainSource, "open-meteo");
 });
+
+test("merge: an Open-Meteo thunder value is kept when Google has none", () => {
+  const om = [{ date: "2026-11-06", rainProb: 30, thunderProb: 20 }];
+  const byDate = new Map([["2026-11-06", { rainProb: 55, thunderProb: null }]]);
+  assert.deepEqual(mergeDaily(om, byDate).daily[0], { date: "2026-11-06", rainProb: 55, thunderProb: 20 });
+});

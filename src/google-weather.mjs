@@ -117,7 +117,10 @@ function overlay(x, g) {
   const rain = g?.rainProb ?? null;
   const thunder = g?.thunderProb ?? null;
   return {
-    entry: { ...x, rainProb: rain ?? x.rainProb, thunderProb: thunder },
+    // Both chances fall back to the Open-Meteo entry's own value. Open-Meteo
+    // has no thunder figure today, so that's null, but it won't be dropped
+    // if one is ever added.
+    entry: { ...x, rainProb: rain ?? x.rainProb, thunderProb: thunder ?? x.thunderProb ?? null },
     used: rain != null || thunder != null,
   };
 }
