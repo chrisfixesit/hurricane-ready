@@ -62,21 +62,25 @@ for (const theme of ["light", "dark"]) {
   });
 }
 
-// (#102) the offline notice only shows when offline, so unhide it to measure
-test("offline notice has AA contrast in light theme", async ({ page }) => {
+// (#102) go offline for real and let the app show its own notice
+test("offline notice has AA contrast in light theme", async ({ page, context }) => {
   await load(page, "light");
-  await page.evaluate(() => { document.getElementById("offline-note").hidden = false; });
+  await context.setOffline(true);
+  await expect(page.locator("#offline-note")).toBeVisible();
   expect(await ratio(page, "#offline-note")).toBeGreaterThanOrEqual(AA_TEXT);
 });
 
 // (#105) UV "High" badge and WARNING chip share a colour on a warning tint.
-// Badges are injected into a card because .uv.high only renders in high UV.
+// They only render with live high-UV / storm data, so inject each into the
+// real container it renders in: a .wx-tile in the sea grid, and a table cell
+// in the storms table.
 test("UV High badge and WARNING chip have AA contrast in light theme", async ({ page }) => {
   await load(page, "light");
   await page.evaluate(() => {
-    const card = document.getElementById("sea-grid").parentElement;
-    card.insertAdjacentHTML("beforeend",
-      '<span id="t-uv" class="uv high">High</span> <span id="t-chip" class="chip WARNING">WARNING</span>');
+    document.getElementById("sea-grid").insertAdjacentHTML("beforeend",
+      '<div class="wx-tile"><div class="lbl">UV</div><div class="val"><span id="t-uv" class="uv high">High</span></div></div>');
+    document.getElementById("storms-body").insertAdjacentHTML("beforeend",
+      '<tr><td><span id="t-chip" class="chip WARNING">WARNING</span></td></tr>');
   });
   expect(await ratio(page, "#t-uv")).toBeGreaterThanOrEqual(AA_TEXT);
   expect(await ratio(page, "#t-chip")).toBeGreaterThanOrEqual(AA_TEXT);
