@@ -1024,7 +1024,7 @@
       const civilActive = !!(s.civilAlert && s.civilAlert.active);
       if ((curRank > 0 || s.storms.length || civilActive) && curRank > (render._autoLvl ?? -1)) {
         const st = document.getElementById("storms");
-        if (st) st.open = true;
+        if (st) setCardOpen(st, true);
       }
       render._autoLvl = curRank;
 
@@ -1052,9 +1052,25 @@
     // see one thing at a time. Cards carry data-page; we show the active page's
     // cards and hide the rest. Hash-routed so pages are linkable + Back works.
     const PAGES = ["home", "forecast", "sea", "radar", "storms", "shelters", "prep"];
+    // Cards are heading + button disclosures (#107): the button's aria-expanded
+    // and the body's hidden attribute are the single source of truth.
+    // A stale cached index.html can briefly pair with this app.js (app.js
+    // revalidates immediately, #97) and still have native <details> cards.
+    function setCardOpen(card, open) {
+      if (card.tagName === "DETAILS") { card.open = open; return; }
+      const btn = card.querySelector(".card-toggle"), body = card.querySelector(".card-body");
+      if (!btn || !body) return;
+      btn.setAttribute("aria-expanded", String(open));
+      body.hidden = !open;
+    }
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest(".card-toggle");
+      if (btn) setCardOpen(btn.closest(".card"), btn.getAttribute("aria-expanded") !== "true");
+    });
+    document.querySelectorAll('.card[data-start="closed"]').forEach((c) => setCardOpen(c, false));
+    let curPage = "home";
     // Returns null for hashes that aren't a page (e.g. the skip link's #main),
     // so those never reroute the user (#100).
-    let curPage = "home";
     function pageFromHash() {
       const h = (location.hash || "").replace("#", "");
       return PAGES.includes(h) ? h : null;
@@ -1064,7 +1080,7 @@
       document.querySelectorAll(".card[data-page]").forEach((c) => {
         const on = c.dataset.page === page;
         c.hidden = !on;
-        if (on && c.tagName === "DETAILS") c.open = true; // pages show content in full
+        if (on) setCardOpen(c, true); // pages show content in full
       });
       document.querySelectorAll(".section-nav a").forEach((a) => {
         a.classList.toggle("active", a.getAttribute("href") === "#" + page);
