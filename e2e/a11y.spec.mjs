@@ -410,6 +410,7 @@ test("browser Back returns to the previous page and updates title and aria-curre
   await expectPage(page, "storms", /^Storms \| Bim Weather$/);
   await page.goBack();
   await expectPage(page, "home", PAGES[0][2]);
+});
 
 // (#106) Play/Pause buttons: the visible label must be the accessible name
 // (WCAG 2.5.3), and the name tracks the state. Radar and satellite upstreams
