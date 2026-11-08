@@ -257,11 +257,18 @@
     let map, layerGroup, radarLayer, radarFrames = [], radarHost = "", radarIdx = 0, radarTimer = null;
     let mapIsland = null;
 
+    // CARTO basemaps need a key since 2026 (keyless tiles come back watermarked
+    // "API KEY REQUIRED" with a 200). It's a public browser key, locked in the
+    // CARTO dashboard to bimweather.246labs.cloud, so other sites (and
+    // localhost) get 403. It relies on the site's strict-origin-when-cross-origin
+    // Referrer-Policy sending our origin to the tile host.
+    const CARTO_KEY = "cb1_54ok_1_b6e739d860bb19708d4ffac0";
+
     function initMap(island) {
       mapIsland = island;
       map = L.map("map", { zoomControl: false }).setView([island.lat, island.lon], 6);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: "&copy; OpenStreetMap &copy; CARTO", maxZoom: 19,
+      L.tileLayer(`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, {
+        attribution: "&copy; OpenStreetMap contributors &copy; CARTO", maxZoom: 19,
       }).addTo(map);
       layerGroup = L.layerGroup().addTo(map);
       setupRadar();
