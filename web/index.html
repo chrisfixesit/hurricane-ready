@@ -317,6 +317,7 @@
     .day .hi { font-weight: 800; }
     .day .lo { color: var(--muted); }
     .day .rain { font-size: 0.72rem; color: var(--accent); margin-top: 0.25rem; }
+    .day .th { font-size: 0.7rem; color: var(--muted); }
 
     /* Hourly strip */
     .strip-key { font-size: 0.75rem; color: var(--muted); padding: 0 1.1rem 0.45rem; line-height: 1.4; }
@@ -598,9 +599,10 @@
       <details class="card" id="forecast" data-page="forecast">
         <summary><span class="sum-t"><span class="ico" data-icon="calendar-days"></span> Next 7 days</span><span class="chev" aria-hidden="true">▾</span></summary>
         <p class="summary" id="forecast-summary"></p>
-        <p class="strip-key">Each day shows the high/low temperature and <b>💧 the chance of rain</b>.</p>
+        <p class="strip-key">Each day shows the high/low temperature and <b>💧 the chance of rain</b>, plus <b>⚡</b> when thunderstorms are possible.</p>
         <div class="days" id="days"><p class="summary">Loading forecast…</p></div>
         <p class="panel-age" id="forecast-age"></p>
+        <p class="attribution" id="forecast-attribution" translate="no" hidden>Source: Includes weather data from Google.</p>
       </details>
 
       <details class="card" id="sea" data-page="sea">

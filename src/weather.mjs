@@ -14,7 +14,7 @@ const WMO = {
   95: "Thunderstorm", 96: "Thunderstorm with hail", 99: "Severe thunderstorm",
 };
 
-import { fetchGoogleHourly, mergeHourly } from "./google-weather.mjs";
+import { fetchGoogleHourly, mergeHourly, fetchGoogleDaily, mergeDaily } from "./google-weather.mjs";
 
 const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
 const compass = (deg) => COMPASS[Math.round(((deg % 360) / 22.5)) % 16];
@@ -103,9 +103,10 @@ export async function fetchCurrentWeather(island) {
  * general audience (the storm panels use knots). Returns null on failure so
  * the dashboard simply hides the everyday sections rather than breaking.
  *
- * With `googleKey`, the hourly rain and thunderstorm chances come from Google
- * (see google-weather.mjs); `sources.rain` says which one the strip shows so
- * the page can attribute it.
+ * With `googleKey`, the rain and thunderstorm chances come from Google for
+ * both the hourly strip and the 7-day cards (see google-weather.mjs);
+ * `sources.rain` and `sources.dailyRain` say which one each shows so the page
+ * can attribute it.
  */
 export async function fetchOutlook(island, { googleKey = "" } = {}) {
   const base = `latitude=${island.lat}&longitude=${island.lon}&timezone=auto`;
@@ -133,16 +134,17 @@ export async function fetchOutlook(island, { googleKey = "" } = {}) {
     );
 
   try {
-    const [fc, marineRes, airRes, googleRes] = await Promise.allSettled([
+    const [fc, marineRes, airRes, googleRes, googleDailyRes] = await Promise.allSettled([
       fetchJson(forecastUrl),
       fetchJson(marineUrl),
       fetchJson(airUrl),
       fetchGoogleHourly(island, googleKey),
+      fetchGoogleDaily(island, googleKey),
     ]);
     if (fc.status !== "fulfilled") throw new Error("forecast unavailable");
     const f = fc.value;
 
-    const daily = f.daily.time.map((date, i) => ({
+    const omDaily = f.daily.time.map((date, i) => ({
       date,
       code: f.daily.weather_code[i],
       description: WMO[f.daily.weather_code[i]] ?? "—",
@@ -152,6 +154,10 @@ export async function fetchOutlook(island, { googleKey = "" } = {}) {
       windMaxKmh: Math.round(f.daily.wind_speed_10m_max[i]),
       uvMax: f.daily.uv_index_max[i] != null ? Math.round(f.daily.uv_index_max[i]) : null,
     }));
+    const { daily, rainSource: dailyRainSource } = mergeDaily(
+      omDaily,
+      googleDailyRes.status === "fulfilled" ? googleDailyRes.value : null
+    );
 
     // Next 24 hours starting from the *current* local hour. Open-Meteo returns
     // naive local timestamps (e.g. "2026-06-20T21:00", no zone) plus the zone's
@@ -225,7 +231,7 @@ export async function fetchOutlook(island, { googleKey = "" } = {}) {
     return {
       generatedAt: new Date().toISOString(),
       daily, hourly, marine, tide, airQuality, astro,
-      sources: { rain: rainSource },
+      sources: { rain: rainSource, dailyRain: dailyRainSource },
     };
   } catch (err) {
     console.warn(`Outlook unavailable (${err.message})`);
