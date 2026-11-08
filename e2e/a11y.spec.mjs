@@ -249,15 +249,18 @@ test("next Tab after the skip link lands on the first card toggle button", async
 // runs (#97), so the router must open those instead of throwing.
 test("router opens a native <details> card from a stale index.html", async ({ page }) => {
   await load(page, "light");
-  const opened = await page.evaluate(() => {
+  const startsOpen = await page.evaluate(() => {
     const d = document.createElement("details");
-    d.className = "card"; d.dataset.page = "forecast";
+    d.id = "stale-card"; d.className = "card"; d.dataset.page = "forecast";
     d.innerHTML = "<summary>Old card</summary><p>body</p>";
     document.querySelector("main").append(d);
-    setCardOpen(d, true);
-    const a = d.open;
-    setCardOpen(d, false);
-    return [a, d.open];
+    return d.open;
   });
-  expect(opened).toEqual([true, false]);
+  expect(startsOpen).toBe(false);
+  // opening goes through the router
+  await page.evaluate(() => { location.hash = "forecast"; });
+  await page.waitForFunction(() => document.getElementById("stale-card").open === true);
+  // closing goes through the shared helper
+  await page.evaluate(() => setCardOpen(document.getElementById("stale-card"), false));
+  await page.waitForFunction(() => document.getElementById("stale-card").open === false);
 });
