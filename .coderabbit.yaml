@@ -28,8 +28,9 @@ reviews:
   merge_risk_instructions: >
     Critical: threat level logic in src/threat.mjs, or anything that could
     under-report a threat. High: how briefing.mjs handles the level, alert
-    delivery (notify, push, unsubscribe), url-safety, WAF, TLS or IAM in infra,
-    replacing the ECS service or CloudFront distribution, and removing CI gates.
+    delivery (notify, push, unsubscribe), url-safety, the release workflow's
+    AWS deploy steps, and removing CI gates. (Infrastructure lives in
+    chrisfixesit/tofu-or-not-tofu.)
     Moderate: feed parsing, sw.js and the web shell, the Dockerfile. Low: copy,
     docs and tests that only add coverage.
   high_level_summary: true
@@ -87,12 +88,6 @@ reviews:
         the manifest, icons) or sw.js itself, the CACHE version must be bumped;
         CloudFront invalidation is manual. Check accessibility and
         plain language for a public audience.
-    - path: "infra/**/*.tf"
-      instructions: >
-        Keep WAF in front of CloudFront, TLS 1.2+ and HSTS. Flag IAM with wildcard
-        Action or Resource, SNS/SES permissions broader than the app needs, the
-        deploy role trusting more than this repo's main branch, and changes that
-        would recreate the ECS service or distribution.
     - path: "{Dockerfile,compose*.yaml}"
       instructions: >
         Keep the container hardening (non-root, read-only filesystem, dropped
