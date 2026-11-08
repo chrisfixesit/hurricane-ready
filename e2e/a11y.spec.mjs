@@ -106,7 +106,12 @@ for (const [name, path] of [["storms", "/#storms"], ["home", "/"]]) {
 
     // focus directly: after a /#storms deep link Chrome starts Tab from the fragment target
     await page.locator(".skip-link").focus();
+    const hashBefore = await page.evaluate(() => location.hash);
+    const histBefore = await page.evaluate(() => history.length);
     await page.keyboard.press("Enter");
+    // no hash change, no history entry
+    expect(await page.evaluate(() => location.hash)).toBe(hashBefore);
+    expect(await page.evaluate(() => history.length)).toBe(histBefore);
 
     expect(await visibleCards()).toEqual(before);
     if (name === "storms") expect(await page.locator('.card[data-page="storms"]').first().isVisible()).toBe(true);
@@ -118,5 +123,6 @@ for (const [name, path] of [["storms", "/#storms"], ["home", "/"]]) {
     await page.keyboard.press("Tab");
     expect(await page.evaluate(() => !!document.activeElement.closest("main"))).toBe(true);
     expect(await page.evaluate(() => document.activeElement.id)).not.toBe("main");
+    await expect(page.locator(":focus")).toBeVisible();
   });
 }

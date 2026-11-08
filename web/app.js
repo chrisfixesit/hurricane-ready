@@ -1053,6 +1053,15 @@
       window.scrollTo(0, 0);
     }
     function setupRouter() {
+      // Skip link (#100): focus main without touching location.hash, so no dead
+      // history entry and a reload keeps the current page. href="#main" stays as the no-JS fallback.
+      const skip = document.querySelector(".skip-link");
+      if (skip) skip.addEventListener("click", (e) => {
+        e.preventDefault();
+        const main = document.getElementById("main");
+        main.focus({ preventScroll: true });
+        main.scrollIntoView();
+      });
       showPage(pageFromHash() ?? "home");
       window.addEventListener("hashchange", () => {
         const page = pageFromHash();
