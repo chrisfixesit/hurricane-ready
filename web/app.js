@@ -788,10 +788,10 @@
       const active = new Set((s.storms || []).map(x => x.name));
       el.innerHTML = names.map((n, i) => {
         let cls = "upcoming", tag = "";
-        if (active.has(n)) { cls = "active"; tag = " · active now"; }
-        else if (i < used) { cls = "used"; }
-        else if (i === used) { cls = "next"; tag = " · next"; }
-        return `<span class="name-chip ${cls}" title="${n}${tag}">${n}</span>`;
+        if (active.has(n)) { cls = "active"; tag = `<span class="name-tag"><span class="sr-only"> – </span>active now</span>`; }
+        else if (i < used) { cls = "used"; tag = `<span class="sr-only"> (used)</span>`; }
+        else if (i === used) { cls = "next"; tag = `<span class="name-tag"><span class="sr-only"> – </span>next</span>`; }
+        return `<li class="name-chip ${cls}">${escapeHtml(n)}${tag}</li>`;
       }).join("");
     }
 
@@ -868,7 +868,7 @@
       const passText = (a) => {
         const p = a.pass;
         if (!p || p.kind === "distant") return "";
-        if (p.kind === "direct-hit-risk") return `<small style="color:#fca5a5">may track very close</small>`;
+        if (p.kind === "direct-hit-risk") return `<small class="pass-close">may track very close</small>`;
         return `<small style="color:var(--accent)">passes ~${p.distanceKm} km to the ${p.side}</small>`;
       };
       const rows = s.storms.map(st => `
