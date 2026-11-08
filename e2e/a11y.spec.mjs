@@ -164,3 +164,55 @@ test("skip made before the first status render is not undone", async ({ page }) 
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await expect(page.locator("main#main")).toBeFocused();
 });
+
+// (#107) every card title is an h2 (inside its <summary>) so heading
+// navigation lists each section; sub-headings sit below it without skipping
+const CARD_TITLES = {
+  home: ["Right now in", "Rain & wind — next 24 hours", "Things to do in Barbados"],
+  forecast: ["Next 7 days"],
+  sea: ["Beach, sea & sky"],
+  radar: ["Rain radar & satellite"],
+  storms: ["Storms & tropics"],
+  shelters: ["Emergency & shelters"],
+  prep: ["Get ready"],
+};
+
+async function openRoute(page, route) {
+  await load(page, "light");
+  await page.evaluate((h) => { location.hash = h; }, route);
+  await expect(page.locator(`.card[data-page="${route}"]`).first()).toBeVisible();
+}
+
+for (const [route, titles] of Object.entries(CARD_TITLES)) {
+  test(`#${route}: card titles are h2 headings in the summary`, async ({ page }) => {
+    await openRoute(page, route);
+    const found = await page.evaluate((r) =>
+      [...document.querySelectorAll(`.card[data-page="${r}"] > summary > h2`)]
+        .filter((h) => h.offsetParent !== null)
+        .map((h) => h.textContent.replace(/\s+/g, " ").trim()), route);
+    expect(found).toHaveLength(titles.length);
+    titles.forEach((t, i) => expect(found[i]).toContain(t));
+  });
+
+  test(`#${route}: heading levels never skip`, async ({ page }) => {
+    await openRoute(page, route);
+    const levels = await page.evaluate(() =>
+      [...document.querySelectorAll("h1,h2,h3,h4,h5,h6")]
+        .filter((h) => h.getClientRects().length > 0)
+        .map((h) => Number(h.tagName[1])));
+    expect(levels[0]).toBe(1);
+    levels.forEach((l, i) => { if (i) expect(l - levels[i - 1], `h${l} after h${levels[i - 1]}`).toBeLessThanOrEqual(1); });
+  });
+}
+
+test("card summary with an h2 inside still toggles on click and Enter", async ({ page }) => {
+  await openRoute(page, "forecast");
+  const card = page.locator('.card[data-page="forecast"]').first();
+  const open = () => card.evaluate((d) => d.open);
+  const before = await open();
+  await card.locator("summary > h2").click();
+  expect(await open()).toBe(!before);
+  await card.locator("summary").focus();
+  await page.keyboard.press("Enter");
+  expect(await open()).toBe(before);
+});

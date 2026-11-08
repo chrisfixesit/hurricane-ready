@@ -3,7 +3,7 @@
 // bump, the activate handler below keeps the old cache and viewers see
 // stale shell HTML until they clear storage. The matching client flow in
 // index.html shows an "Update available" toast when a new SW is waiting.
-const CACHE = "hr-cache-v11";
+const CACHE = "hr-cache-v12";
 // app.js is precached with the page that needs it, so a new SW that activates
 // offline still has the matching script.
 const SHELL = [

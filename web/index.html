@@ -146,7 +146,7 @@
        colour follows currentColor — so they inherit the theme automatically. */
     svg.ic { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em; }
     .ico { display: inline-flex; align-items: center; }
-    .sum-t .ico, .card h2 .ico { font-size: 1.18em; color: var(--accent); }
+    .sum-t .ico, .card > h3 .ico { font-size: 1.18em; color: var(--accent); }
     .nav-ico, .dv-ico, .todo-ico, .adv-ico, .ca-ico, .s-ico { display: inline-flex; align-items: center; justify-content: center; }
     .todo-ico { color: var(--accent); }
     section[id] { scroll-margin-top: 70px; }
@@ -266,7 +266,9 @@
     details.card > summary:hover { color: var(--text); background: var(--card-2); }
     details.card > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; border-radius: 16px; }
     @media (prefers-reduced-motion: reduce) { details.card > summary .chev { transition: none; } }
-    .card h2 {
+    /* the summary's h2 title (#107) takes the summary's look, not the sub-heading one */
+    details.card > summary > h2 { font-size: inherit; font-weight: inherit; letter-spacing: inherit; }
+    .card > h3 {
       font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--heading);
       padding: 0.85rem 1.1rem 0.55rem; display: flex; align-items: center; gap: 0.45rem; font-weight: 800;
     }
@@ -574,7 +576,7 @@
 
     <main id="main" tabindex="-1">
       <details class="card" id="now" data-page="home" open>
-        <summary><span class="sum-t"><span class="ico" data-icon="sun"></span> Right now in <span id="now-island">Barbados</span></span><span class="chev" aria-hidden="true">▾</span></summary>
+        <summary><h2 class="sum-t"><span class="ico" data-icon="sun"></span> Right now in <span id="now-island">Barbados</span></h2><span class="chev" aria-hidden="true">▾</span></summary>
         <p class="summary" id="now-summary">Loading current conditions…</p>
         <div class="wx-now" id="wx-now" hidden>
           <div class="wx-ico" id="wx-ico" aria-hidden="true"></div>
@@ -591,7 +593,7 @@
       </details>
 
       <details class="card" id="rainwind" data-page="home" open>
-        <summary><span class="sum-t"><span class="ico" data-icon="cloud-rain"></span> Rain &amp; wind — next 24 hours</span><span class="chev" aria-hidden="true">▾</span></summary>
+        <summary><h2 class="sum-t"><span class="ico" data-icon="cloud-rain"></span> Rain &amp; wind — next 24 hours</h2><span class="chev" aria-hidden="true">▾</span></summary>
         <p class="summary" id="rainwind-summary">Loading outlook…</p>
         <p class="flood-note" id="flood-note" role="status" aria-live="polite" hidden></p>
         <p class="strip-key">Hour by hour — <b>💧 chance of rain</b>, <b>⚡ chance of thunderstorms</b> (when likely) and <b>wind speed</b> (scroll for all 24 hours):</p>
@@ -600,14 +602,14 @@
       </details>
 
       <details class="card" id="todo" data-page="home" open>
-        <summary><span class="sum-t"><span class="ico" data-icon="palmtree"></span> Things to do in Barbados</span><span class="chev" aria-hidden="true">▾</span></summary>
+        <summary><h2 class="sum-t"><span class="ico" data-icon="palmtree"></span> Things to do in Barbados</h2><span class="chev" aria-hidden="true">▾</span></summary>
         <p class="summary" id="todo-summary">Loading ideas…</p>
         <div class="todo-grid" id="todo-grid"></div>
         <p class="wx-obs">Ideas are matched to today's weather. Always check opening times before you go.</p>
       </details>
 
       <details class="card" id="forecast" data-page="forecast">
-        <summary><span class="sum-t"><span class="ico" data-icon="calendar-days"></span> Next 7 days</span><span class="chev" aria-hidden="true">▾</span></summary>
+        <summary><h2 class="sum-t"><span class="ico" data-icon="calendar-days"></span> Next 7 days</h2><span class="chev" aria-hidden="true">▾</span></summary>
         <p class="summary" id="forecast-summary"></p>
         <p class="strip-key">Each day shows the high/low temperature and <b>💧 the chance of rain</b>, plus <b>⚡</b> when thunderstorms are possible.</p>
         <div class="days" id="days"><p class="summary">Loading forecast…</p></div>
@@ -616,20 +618,20 @@
       </details>
 
       <details class="card" id="sea" data-page="sea">
-        <summary><span class="sum-t"><span class="ico" data-icon="umbrella"></span> Beach, sea &amp; sky</span><span class="chev" aria-hidden="true">▾</span></summary>
-        <h2 class="sub"><span class="ico" data-icon="waves"></span> Beach &amp; sea</h2>
+        <summary><h2 class="sum-t"><span class="ico" data-icon="umbrella"></span> Beach, sea &amp; sky</h2><span class="chev" aria-hidden="true">▾</span></summary>
+        <h3 class="sub"><span class="ico" data-icon="waves"></span> Beach &amp; sea</h3>
         <p class="summary" id="sea-summary">Loading sea conditions…</p>
         <div class="wx-grid" id="sea-grid"></div>
-        <h2><span class="ico" data-icon="moon"></span> Sun &amp; moon</h2>
+        <h3><span class="ico" data-icon="moon"></span> Sun &amp; moon</h3>
         <p class="strip-key" id="sky-day"></p>
         <div class="wx-grid" id="sky-grid"></div>
-        <h2><span class="ico" data-icon="wind"></span> Air &amp; tide</h2>
+        <h3><span class="ico" data-icon="wind"></span> Air &amp; tide</h3>
         <p class="summary" id="air-summary">Loading air &amp; tide…</p>
         <div class="wx-grid" id="air-grid"></div>
       </details>
 
       <details class="card" id="radar" data-page="radar">
-        <summary><span class="sum-t"><span class="ico" data-icon="radar"></span> Rain radar &amp; satellite</span><span class="chev" aria-hidden="true">▾</span></summary>
+        <summary><h2 class="sum-t"><span class="ico" data-icon="radar"></span> Rain radar &amp; satellite</h2><span class="chev" aria-hidden="true">▾</span></summary>
         <div id="map" aria-label="Live rain radar and active storms near Barbados"></div>
         <div class="radar-bar">
           <button id="radar-toggle" type="button" aria-label="Play or pause radar animation">▶ Play radar</button>
@@ -681,7 +683,7 @@
       </details>
 
       <details class="card" id="storms" data-page="storms">
-        <summary><span class="sum-t"><span class="ico" data-icon="tornado"></span> Storms &amp; tropics</span><span class="chev" aria-hidden="true">▾</span></summary>
+        <summary><h2 class="sum-t"><span class="ico" data-icon="tornado"></span> Storms &amp; tropics</h2><span class="chev" aria-hidden="true">▾</span></summary>
         <p id="replay-label" class="replay-label"></p>
         <div id="briefing" class="briefing">Loading…</div>
         <p id="briefing-source" class="briefing-source"></p>
@@ -695,17 +697,17 @@
           </table>
         </div>
 
-        <h2><span class="ico" data-icon="globe"></span> Atlantic outlook</h2>
+        <h3><span class="ico" data-icon="globe"></span> Atlantic outlook</h3>
         <p class="summary" id="tropical-summary">Loading the tropics…</p>
         <p class="wave-note" id="wave-note" role="status" aria-live="polite" hidden></p>
         <div class="outlook-areas" id="tropical-areas"></div>
         <p class="tropical-src" id="tropical-src"></p>
 
-        <h2><span class="ico" data-icon="tags"></span> This season's storm names</h2>
+        <h3><span class="ico" data-icon="tags"></span> This season's storm names</h3>
         <p class="hist-intro">Atlantic storms are named in order as they form. Active and used names are highlighted.</p>
         <div class="names" id="season-names"></div>
 
-        <h2><span class="ico" data-icon="lightbulb"></span> What the levels mean</h2>
+        <h3><span class="ico" data-icon="lightbulb"></span> What the levels mean</h3>
         <div class="legend">
           <div><b><i style="background:var(--all-clear)"></i>All clear</b>No storms threatening us.</div>
           <div><b><i style="background:var(--watch)"></i>Watch</b>System active in the basin. Check in daily.</div>
@@ -713,13 +715,13 @@
           <div><b><i style="background:var(--imminent)"></i>Imminent</b>Conditions expected — be ready to shelter.</div>
         </div>
 
-        <h2><span class="ico" data-icon="history"></span> Level history</h2>
+        <h3><span class="ico" data-icon="history"></span> Level history</h3>
         <div id="history" class="history">—</div>
       </details>
 
       <details class="card" id="shelters" data-page="shelters">
-        <summary><span class="sum-t"><span class="ico" data-icon="life-buoy"></span> Emergency &amp; shelters</span><span class="chev" aria-hidden="true">▾</span></summary>
-        <h2 class="sub"><span class="ico" data-icon="phone"></span> Emergency numbers</h2>
+        <summary><h2 class="sum-t"><span class="ico" data-icon="life-buoy"></span> Emergency &amp; shelters</h2><span class="chev" aria-hidden="true">▾</span></summary>
+        <h3 class="sub"><span class="ico" data-icon="phone"></span> Emergency numbers</h3>
         <div class="emerg">
           <a class="emerg-num" href="tel:211"><b>211</b><small>Police</small></a>
           <a class="emerg-num" href="tel:311"><b>311</b><small>Fire</small></a>
@@ -728,7 +730,7 @@
           <a class="emerg-num" href="tel:+12464387575"><b>438-7575</b><small>DEM</small></a>
         </div>
 
-        <h2><span class="ico" data-icon="house"></span> Find a hurricane shelter</h2>
+        <h3><span class="ico" data-icon="house"></span> Find a hurricane shelter</h3>
         <p class="hist-intro">Pick your parish to see official Category&nbsp;1 shelters near you.</p>
         <div class="shelter-pick">
           <select id="parish-select" aria-label="Choose your parish">
@@ -740,7 +742,7 @@
       </details>
 
       <details class="card" id="prep" data-page="prep">
-        <summary><span class="sum-t"><span class="ico" data-icon="backpack"></span> Get ready</span><span class="chev" aria-hidden="true">▾</span></summary>
+        <summary><h2 class="sum-t"><span class="ico" data-icon="backpack"></span> Get ready</h2><span class="chev" aria-hidden="true">▾</span></summary>
         <p class="summary">Simple steps for hurricane season in Barbados. The season runs <span class="lead">1 June to 30 November</span>.</p>
         <div class="prep">
           <div class="prep-col">
@@ -775,7 +777,7 @@
           </div>
         </div>
 
-        <h2><span class="ico" data-icon="external-link"></span> Official sources</h2>
+        <h3><span class="ico" data-icon="external-link"></span> Official sources</h3>
         <p class="hist-intro">This site is unofficial. For official forecasts and warnings, always go to these.</p>
         <div class="sources">
           <a class="source" href="https://www.barbadosweather.org" target="_blank" rel="noopener">
