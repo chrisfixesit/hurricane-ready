@@ -109,29 +109,40 @@ export function fetchGoogleDaily(island, apiKey, opts) {
   }, opts);
 }
 
+// Overlay one Google entry onto one Open-Meteo entry. Each chance is taken
+// from Google only when Google's value is usable, so a valid thunder chance
+// survives a missing rain chance (and vice versa). `used` says whether any
+// Google number was shown, which is what decides the attribution.
+function overlay(x, g) {
+  const rain = g?.rainProb ?? null;
+  const thunder = g?.thunderProb ?? null;
+  return {
+    entry: { ...x, rainProb: rain ?? x.rainProb, thunderProb: thunder },
+    used: rain != null || thunder != null,
+  };
+}
+
+function mergeWith(om, lookup) {
+  let used = false;
+  const out = om.map((x) => {
+    const r = overlay(x, lookup(x));
+    used ||= r.used;
+    return r.entry;
+  });
+  return { out, rainSource: used ? "google" : "open-meteo" };
+}
+
 /**
  * Overlay Google's per-hour chances onto the Open-Meteo hourly strip. Pure.
  * `toUtcMs` converts an Open-Meteo naive local timestamp to a UTC instant.
  */
 export function mergeHourly(omHourly, toUtcMs, googleByHour) {
-  let matched = 0;
-  const hourly = omHourly.map((x) => {
-    const g = googleByHour?.get(toUtcMs(x.time));
-    if (!g || g.rainProb == null) return { ...x, thunderProb: null };
-    matched++;
-    return { ...x, rainProb: g.rainProb, thunderProb: g.thunderProb };
-  });
-  return { hourly, rainSource: matched ? "google" : "open-meteo" };
+  const { out, rainSource } = mergeWith(omHourly, (x) => googleByHour?.get(toUtcMs(x.time)));
+  return { hourly: out, rainSource };
 }
 
 /** Overlay Google's per-day chances onto the Open-Meteo 7-day cards. Pure. */
 export function mergeDaily(omDaily, googleByDate) {
-  let matched = 0;
-  const daily = omDaily.map((x) => {
-    const g = googleByDate?.get(x.date);
-    if (!g || g.rainProb == null) return { ...x, thunderProb: null };
-    matched++;
-    return { ...x, rainProb: g.rainProb, thunderProb: g.thunderProb };
-  });
-  return { daily, rainSource: matched ? "google" : "open-meteo" };
+  const { out, rainSource } = mergeWith(omDaily, (x) => googleByDate?.get(x.date));
+  return { daily: out, rainSource };
 }

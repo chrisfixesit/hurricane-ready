@@ -295,3 +295,29 @@ test("fetchOutlook: Google down → 7-day cards stay Open-Meteo", async () => {
   assert.equal(o.daily[0].rainProb, 20);
   assert.equal(o.daily[0].thunderProb, null);
 });
+
+// ---- thunder without rain (CodeRabbit on #95) ----
+
+test("mergeHourly: a valid Google thunder chance is kept when its rain chance is missing", () => {
+  const g = new Map([[toUtcMs("2026-11-06T12:00"), { rainProb: null, thunderProb: 60 }]]);
+  const { hourly, rainSource } = mergeHourly(omHours, toUtcMs, g);
+  assert.equal(hourly[0].rainProb, 5, "rain chance stays Open-Meteo's");
+  assert.equal(hourly[0].thunderProb, 60, "thunder chance comes from Google");
+  assert.equal(rainSource, "google", "any Google number shown needs the attribution");
+});
+
+test("mergeDaily: a valid Google thunder chance is kept when its rain chance is missing", () => {
+  const om = [{ date: "2026-11-06", rainProb: 90 }];
+  const byDate = new Map([["2026-11-06", { rainProb: null, thunderProb: 45 }]]);
+  const { daily, rainSource } = mergeDaily(om, byDate);
+  assert.deepEqual(daily[0], { date: "2026-11-06", rainProb: 90, thunderProb: 45 });
+  assert.equal(rainSource, "google");
+});
+
+test("merge: an entry with neither chance usable counts as no Google data", () => {
+  const g = new Map([[toUtcMs("2026-11-06T12:00"), { rainProb: null, thunderProb: null }]]);
+  const { hourly, rainSource } = mergeHourly(omHours, toUtcMs, g);
+  assert.equal(hourly[0].rainProb, 5);
+  assert.equal(hourly[0].thunderProb, null);
+  assert.equal(rainSource, "open-meteo");
+});
