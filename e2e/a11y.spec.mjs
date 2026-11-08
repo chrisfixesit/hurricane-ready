@@ -140,7 +140,7 @@ test("skip link target is not covered by the sticky nav at 320px", async ({ page
   const r = await page.evaluate(() => {
     const top = (s) => document.querySelector(s).getBoundingClientRect().top;
     return { nav: document.querySelector(".section-nav").getBoundingClientRect().bottom,
-      main: top("main"), summary: top("main .card:not([hidden]) summary") };
+      main: top("main"), summary: top("main .card:not([hidden]) .card-toggle") };
   });
   expect(r.main).toBeGreaterThanOrEqual(r.nav);
   expect(r.summary).toBeGreaterThanOrEqual(r.nav);
@@ -163,6 +163,106 @@ test("skip made before the first status render is not undone", async ({ page }) 
   // content grows on render so the exact offset can move; it must not reset to the top
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await expect(page.locator("main#main")).toBeFocused();
+});
+
+// (#107) every card title is an h2 holding the disclosure button so heading
+// navigation lists each section; sub-headings sit below it without skipping
+const CARD_TITLES = {
+  home: ["Right now in", "Rain & wind — next 24 hours", "Things to do in Barbados"],
+  forecast: ["Next 7 days"],
+  sea: ["Beach, sea & sky"],
+  radar: ["Rain radar & satellite"],
+  storms: ["Storms & tropics"],
+  shelters: ["Emergency & shelters"],
+  prep: ["Get ready"],
+};
+
+async function openRoute(page, route) {
+  await load(page, "light");
+  await page.evaluate((h) => { location.hash = h; }, route);
+  await expect(page.locator(`.card[data-page="${route}"]`).first()).toBeVisible();
+}
+
+for (const [route, titles] of Object.entries(CARD_TITLES)) {
+  test(`#${route}: card titles are h2 headings with a toggle button`, async ({ page }) => {
+    await openRoute(page, route);
+    const found = await page.evaluate((r) =>
+      [...document.querySelectorAll(`.card[data-page="${r}"] > h2.card-h`)]
+        .filter((h) => h.offsetParent !== null)
+        .map((h) => h.textContent.replace(/\s+/g, " ").trim()), route);
+    expect(found).toHaveLength(titles.length);
+    titles.forEach((t, i) => expect(found[i]).toContain(t));
+    // the h2 holds a button whose accessible name is the title
+    for (const t of titles) {
+      await expect(page.getByRole("heading", { level: 2 }).getByRole("button", { name: t, exact: false }).first()).toBeVisible();
+    }
+  });
+
+  test(`#${route}: heading levels never skip`, async ({ page }) => {
+    await openRoute(page, route);
+    const levels = await page.evaluate(() =>
+      [...document.querySelectorAll("h1,h2,h3,h4,h5,h6")]
+        .filter((h) => h.getClientRects().length > 0)
+        .map((h) => Number(h.tagName[1])));
+    expect(levels[0]).toBe(1);
+    levels.forEach((l, i) => { if (i) expect(l - levels[i - 1], `h${l} after h${levels[i - 1]}`).toBeLessThanOrEqual(1); });
+  });
+}
+
+for (const how of ["click", "Enter", "Space"]) {
+  test(`card toggle button opens and closes its body on ${how}`, async ({ page }) => {
+    await openRoute(page, "forecast");
+    const card = page.locator('.card[data-page="forecast"]').first();
+    const btn = card.locator("h2 > button.card-toggle");
+    const body = card.locator(".card-body");
+    const controls = await btn.getAttribute("aria-controls");
+    expect(controls).toBeTruthy();
+    expect(await page.evaluate((id) => !!document.getElementById(id), controls)).toBe(true);
+    expect(await body.getAttribute("id")).toBe(controls);
+    const flip = async () => {
+      if (how === "click") await btn.click();
+      else { await btn.focus(); await page.keyboard.press(how); }
+    };
+    await expect(btn).toHaveAttribute("aria-expanded", "true");
+    await expect(body).toBeVisible();
+    await flip();
+    await expect(btn).toHaveAttribute("aria-expanded", "false");
+    await expect(body).toBeHidden();
+    await flip();
+    await expect(btn).toHaveAttribute("aria-expanded", "true");
+    await expect(body).toBeVisible();
+  });
+}
+
+test("next Tab after the skip link lands on the first card toggle button", async ({ page }) => {
+  await load(page, "light");
+  await page.locator(".skip-link").focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Tab");
+  expect(await page.evaluate(() => {
+    const first = document.querySelector(".card:not([hidden]) > h2 > .card-toggle");
+    return !!first && document.activeElement === first;
+  })).toBe(true);
+});
+
+// A stale cached index.html can still have <details> cards when the new app.js
+// runs (#97), so the router must open those instead of throwing.
+test("router opens a native <details> card from a stale index.html", async ({ page }) => {
+  await load(page, "light");
+  const startsOpen = await page.evaluate(() => {
+    const d = document.createElement("details");
+    d.id = "stale-card"; d.className = "card"; d.dataset.page = "forecast";
+    d.innerHTML = "<summary>Old card</summary><p>body</p>";
+    document.querySelector("main").append(d);
+    return d.open;
+  });
+  expect(startsOpen).toBe(false);
+  // opening goes through the router
+  await page.evaluate(() => { location.hash = "forecast"; });
+  await page.waitForFunction(() => document.getElementById("stale-card").open === true);
+  // closing goes through the shared helper
+  await page.evaluate(() => setCardOpen(document.getElementById("stale-card"), false));
+  await page.waitForFunction(() => document.getElementById("stale-card").open === false);
 });
 
 // (#103) forecast cards: the icon is decorative, so the condition and the

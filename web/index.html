@@ -146,7 +146,7 @@
        colour follows currentColor — so they inherit the theme automatically. */
     svg.ic { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em; }
     .ico { display: inline-flex; align-items: center; }
-    .sum-t .ico, .card h2 .ico { font-size: 1.18em; color: var(--accent); }
+    .sum-t .ico, .card-body > h3 .ico { font-size: 1.18em; color: var(--accent); }
     .nav-ico, .dv-ico, .todo-ico, .adv-ico, .ca-ico, .s-ico { display: inline-flex; align-items: center; justify-content: center; }
     .todo-ico { color: var(--accent); }
     section[id] { scroll-margin-top: 70px; }
@@ -249,24 +249,25 @@
     }
 
     .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 1rem; box-shadow: var(--card-shadow); }
-    /* Collapsible cards (native <details>): one tap to open/close, nothing
-       hidden behind tabs. Key sections start open; the rest are tucked away. */
-    details.card > summary {
-      list-style: none; cursor: pointer; user-select: none;
+    /* Collapsible cards: heading + button disclosure (#107), so every screen
+       reader exposes the h2 and the expanded state. One tap to open/close,
+       nothing hidden behind tabs. Key sections start open; the rest are tucked away. */
+    .card-h { font-size: inherit; font-weight: inherit; letter-spacing: inherit; }
+    .card-toggle {
+      appearance: none; -webkit-appearance: none; width: 100%; margin: 0; border: 0; border-radius: 0; background: none;
+      font-family: inherit; line-height: inherit; text-align: left; cursor: pointer; user-select: none;
       display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
       font-size: 0.86rem; text-transform: uppercase; letter-spacing: 0.06em;
       color: var(--heading); font-weight: 800; padding: 0.95rem 1.1rem;
     }
-    details.card > summary::-webkit-details-marker { display: none; }
-    details.card > summary::marker { content: ""; }
-    details.card > summary .sum-t { display: flex; align-items: center; gap: 0.45rem; }
-    details.card > summary .chev { flex: none; font-size: 0.8rem; color: var(--accent); transition: transform 0.2s ease; }
-    details.card[open] > summary .chev { transform: rotate(180deg); }
-    details.card[open] > summary { border-bottom: 1px solid var(--border); }
-    details.card > summary:hover { color: var(--text); background: var(--card-2); }
-    details.card > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; border-radius: 16px; }
-    @media (prefers-reduced-motion: reduce) { details.card > summary .chev { transition: none; } }
-    .card h2 {
+    .card-toggle .sum-t { display: flex; align-items: center; gap: 0.45rem; }
+    .card-toggle .chev { flex: none; font-size: 0.8rem; color: var(--accent); transition: transform 0.2s ease; }
+    .card-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
+    .card-toggle[aria-expanded="true"] { border-bottom: 1px solid var(--border); }
+    .card-toggle:hover { color: var(--text); background: var(--card-2); }
+    .card-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; border-radius: 16px; }
+    @media (prefers-reduced-motion: reduce) { .card-toggle .chev { transition: none; } }
+    .card-body > h3 {
       font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--heading);
       padding: 0.85rem 1.1rem 0.55rem; display: flex; align-items: center; gap: 0.45rem; font-weight: 800;
     }
@@ -573,8 +574,9 @@
     </nav>
 
     <main id="main" tabindex="-1">
-      <details class="card" id="now" data-page="home" open>
-        <summary><span class="sum-t"><span class="ico" data-icon="sun"></span> Right now in <span id="now-island">Barbados</span></span><span class="chev" aria-hidden="true">▾</span></summary>
+      <section class="card" id="now" data-page="home">
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="now-card-body"><span class="sum-t"><span class="ico" data-icon="sun"></span> Right now in <span id="now-island">Barbados</span></span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <div class="card-body" id="now-card-body">
         <p class="summary" id="now-summary">Loading current conditions…</p>
         <div class="wx-now" id="wx-now" hidden>
           <div class="wx-ico" id="wx-ico" aria-hidden="true"></div>
@@ -588,48 +590,58 @@
         <div class="day-verdict" id="day-verdict" hidden><span class="dv-ico" id="dv-ico" aria-hidden="true"></span><span id="dv-text"></span></div>
         <div class="wx-grid" id="wx-grid" hidden></div>
         <p class="wx-obs" id="wx-obs"></p>
-      </details>
+        </div>
+      </section>
 
-      <details class="card" id="rainwind" data-page="home" open>
-        <summary><span class="sum-t"><span class="ico" data-icon="cloud-rain"></span> Rain &amp; wind — next 24 hours</span><span class="chev" aria-hidden="true">▾</span></summary>
+      <section class="card" id="rainwind" data-page="home">
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="rainwind-card-body"><span class="sum-t"><span class="ico" data-icon="cloud-rain"></span> Rain &amp; wind — next 24 hours</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <div class="card-body" id="rainwind-card-body">
         <p class="summary" id="rainwind-summary">Loading outlook…</p>
         <p class="flood-note" id="flood-note" role="status" aria-live="polite" hidden></p>
         <p class="strip-key">Hour by hour — <b>💧 chance of rain</b>, <b>⚡ chance of thunderstorms</b> (when likely) and <b>wind speed</b> (scroll for all 24 hours):</p>
         <div class="hours" id="hours" tabindex="0" role="group" aria-label="Hourly forecast for the next 24 hours — scroll sideways"></div>
         <p class="attribution" id="rain-attribution" translate="no" hidden>Source: Includes weather data from Google.</p>
-      </details>
+        </div>
+      </section>
 
-      <details class="card" id="todo" data-page="home" open>
-        <summary><span class="sum-t"><span class="ico" data-icon="palmtree"></span> Things to do in Barbados</span><span class="chev" aria-hidden="true">▾</span></summary>
+      <section class="card" id="todo" data-page="home">
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="todo-card-body"><span class="sum-t"><span class="ico" data-icon="palmtree"></span> Things to do in Barbados</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <div class="card-body" id="todo-card-body">
         <p class="summary" id="todo-summary">Loading ideas…</p>
         <div class="todo-grid" id="todo-grid"></div>
         <p class="wx-obs">Ideas are matched to today's weather. Always check opening times before you go.</p>
-      </details>
+        </div>
+      </section>
 
-      <details class="card" id="forecast" data-page="forecast">
-        <summary><span class="sum-t"><span class="ico" data-icon="calendar-days"></span> Next 7 days</span><span class="chev" aria-hidden="true">▾</span></summary>
+      <section class="card" id="forecast" data-page="forecast" data-start="closed">
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="forecast-card-body"><span class="sum-t"><span class="ico" data-icon="calendar-days"></span> Next 7 days</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <div class="card-body" id="forecast-card-body">
         <p class="summary" id="forecast-summary"></p>
         <p class="strip-key">Each day shows the high/low temperature and <b>💧 the chance of rain</b>, plus <b>⚡</b> when thunderstorms are possible.</p>
         <div class="days" id="days"><p class="summary">Loading forecast…</p></div>
         <p class="panel-age" id="forecast-age"></p>
         <p class="attribution" id="forecast-attribution" translate="no" hidden>Source: Includes weather data from Google.</p>
-      </details>
+        </div>
+      </section>
 
-      <details class="card" id="sea" data-page="sea">
-        <summary><span class="sum-t"><span class="ico" data-icon="umbrella"></span> Beach, sea &amp; sky</span><span class="chev" aria-hidden="true">▾</span></summary>
-        <h2 class="sub"><span class="ico" data-icon="waves"></span> Beach &amp; sea</h2>
+      <section class="card" id="sea" data-page="sea" data-start="closed">
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="sea-card-body"><span class="sum-t"><span class="ico" data-icon="umbrella"></span> Beach, sea &amp; sky</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <div class="card-body" id="sea-card-body">
+        <h3 class="sub"><span class="ico" data-icon="waves"></span> Beach &amp; sea</h3>
         <p class="summary" id="sea-summary">Loading sea conditions…</p>
         <div class="wx-grid" id="sea-grid"></div>
-        <h2><span class="ico" data-icon="moon"></span> Sun &amp; moon</h2>
+        <h3><span class="ico" data-icon="moon"></span> Sun &amp; moon</h3>
         <p class="strip-key" id="sky-day"></p>
         <div class="wx-grid" id="sky-grid"></div>
-        <h2><span class="ico" data-icon="wind"></span> Air &amp; tide</h2>
+        <h3><span class="ico" data-icon="wind"></span> Air &amp; tide</h3>
         <p class="summary" id="air-summary">Loading air &amp; tide…</p>
         <div class="wx-grid" id="air-grid"></div>
-      </details>
+        </div>
+      </section>
 
-      <details class="card" id="radar" data-page="radar">
-        <summary><span class="sum-t"><span class="ico" data-icon="radar"></span> Rain radar &amp; satellite</span><span class="chev" aria-hidden="true">▾</span></summary>
+      <section class="card" id="radar" data-page="radar" data-start="closed">
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="radar-card-body"><span class="sum-t"><span class="ico" data-icon="radar"></span> Rain radar &amp; satellite</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <div class="card-body" id="radar-card-body">
         <div id="map" aria-label="Live rain radar and active storms near Barbados"></div>
         <div class="radar-bar">
           <button id="radar-toggle" type="button" aria-label="Play or pause radar animation">▶ Play radar</button>
@@ -678,10 +690,12 @@
             <div class="ex-body">The <b>wind forecast</b> for the region. The moving lines show which way the wind blows; the colours show how strong it is, from calm blues to stronger yellows and reds. A storm shows up as a tight swirl. Use the timeline at the bottom to see the next few days, and tap anywhere for the forecast there. Wind speeds are in knots.</div>
           </details>
         </figure>
-      </details>
+        </div>
+      </section>
 
-      <details class="card" id="storms" data-page="storms">
-        <summary><span class="sum-t"><span class="ico" data-icon="tornado"></span> Storms &amp; tropics</span><span class="chev" aria-hidden="true">▾</span></summary>
+      <section class="card" id="storms" data-page="storms" data-start="closed">
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="storms-card-body"><span class="sum-t"><span class="ico" data-icon="tornado"></span> Storms &amp; tropics</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <div class="card-body" id="storms-card-body">
         <p id="replay-label" class="replay-label"></p>
         <div id="briefing" class="briefing">Loading…</div>
         <p id="briefing-source" class="briefing-source"></p>
@@ -695,17 +709,17 @@
           </table>
         </div>
 
-        <h2><span class="ico" data-icon="globe"></span> Atlantic outlook</h2>
+        <h3><span class="ico" data-icon="globe"></span> Atlantic outlook</h3>
         <p class="summary" id="tropical-summary">Loading the tropics…</p>
         <p class="wave-note" id="wave-note" role="status" aria-live="polite" hidden></p>
         <div class="outlook-areas" id="tropical-areas"></div>
         <p class="tropical-src" id="tropical-src"></p>
 
-        <h2><span class="ico" data-icon="tags"></span> This season's storm names</h2>
+        <h3><span class="ico" data-icon="tags"></span> This season's storm names</h3>
         <p class="hist-intro">Atlantic storms are named in order as they form. Active and used names are highlighted.</p>
         <div class="names" id="season-names"></div>
 
-        <h2><span class="ico" data-icon="lightbulb"></span> What the levels mean</h2>
+        <h3><span class="ico" data-icon="lightbulb"></span> What the levels mean</h3>
         <div class="legend">
           <div><b><i style="background:var(--all-clear)"></i>All clear</b>No storms threatening us.</div>
           <div><b><i style="background:var(--watch)"></i>Watch</b>System active in the basin. Check in daily.</div>
@@ -713,13 +727,15 @@
           <div><b><i style="background:var(--imminent)"></i>Imminent</b>Conditions expected — be ready to shelter.</div>
         </div>
 
-        <h2><span class="ico" data-icon="history"></span> Level history</h2>
+        <h3><span class="ico" data-icon="history"></span> Level history</h3>
         <div id="history" class="history">—</div>
-      </details>
+        </div>
+      </section>
 
-      <details class="card" id="shelters" data-page="shelters">
-        <summary><span class="sum-t"><span class="ico" data-icon="life-buoy"></span> Emergency &amp; shelters</span><span class="chev" aria-hidden="true">▾</span></summary>
-        <h2 class="sub"><span class="ico" data-icon="phone"></span> Emergency numbers</h2>
+      <section class="card" id="shelters" data-page="shelters" data-start="closed">
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="shelters-card-body"><span class="sum-t"><span class="ico" data-icon="life-buoy"></span> Emergency &amp; shelters</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <div class="card-body" id="shelters-card-body">
+        <h3 class="sub"><span class="ico" data-icon="phone"></span> Emergency numbers</h3>
         <div class="emerg">
           <a class="emerg-num" href="tel:211"><b>211</b><small>Police</small></a>
           <a class="emerg-num" href="tel:311"><b>311</b><small>Fire</small></a>
@@ -728,7 +744,7 @@
           <a class="emerg-num" href="tel:+12464387575"><b>438-7575</b><small>DEM</small></a>
         </div>
 
-        <h2><span class="ico" data-icon="house"></span> Find a hurricane shelter</h2>
+        <h3><span class="ico" data-icon="house"></span> Find a hurricane shelter</h3>
         <p class="hist-intro">Pick your parish to see official Category&nbsp;1 shelters near you.</p>
         <div class="shelter-pick">
           <select id="parish-select" aria-label="Choose your parish">
@@ -737,10 +753,12 @@
         </div>
         <div class="shelter-list" id="shelter-list"></div>
         <p class="tropical-src">Source: Barbados DEM Category&nbsp;1 shelter list (2026 booklet). Shelters and openings can change — always confirm with DEM before travelling. <a href="https://dem.gov.bb/public/downloads/SHELTERBOOKLET2026PUBLIC.pdf" target="_blank" rel="noopener">Official shelter booklet (PDF)</a> · ♿ = wheelchair access.</p>
-      </details>
+        </div>
+      </section>
 
-      <details class="card" id="prep" data-page="prep">
-        <summary><span class="sum-t"><span class="ico" data-icon="backpack"></span> Get ready</span><span class="chev" aria-hidden="true">▾</span></summary>
+      <section class="card" id="prep" data-page="prep" data-start="closed">
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="prep-card-body"><span class="sum-t"><span class="ico" data-icon="backpack"></span> Get ready</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <div class="card-body" id="prep-card-body">
         <p class="summary">Simple steps for hurricane season in Barbados. The season runs <span class="lead">1 June to 30 November</span>.</p>
         <div class="prep">
           <div class="prep-col">
@@ -775,7 +793,7 @@
           </div>
         </div>
 
-        <h2><span class="ico" data-icon="external-link"></span> Official sources</h2>
+        <h3><span class="ico" data-icon="external-link"></span> Official sources</h3>
         <p class="hist-intro">This site is unofficial. For official forecasts and warnings, always go to these.</p>
         <div class="sources">
           <a class="source" href="https://www.barbadosweather.org" target="_blank" rel="noopener">
@@ -797,7 +815,8 @@
           <a class="source" href="https://whatsapp.com/channel/0029VaikmlJF6smrbw2hXJ3I" target="_blank" rel="noopener">
             <span class="s-ico" aria-hidden="true" data-icon="message-circle"></span><span><b>BMS WhatsApp channel</b><small>Alerts on your phone</small></span></a>
         </div>
-      </details>
+        </div>
+      </section>
     </main>
     </div>
 
