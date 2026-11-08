@@ -28,6 +28,12 @@
     // wrong day-of-week labels on the 7-day strip and the wrong wall-clock
     // for "winds reach us by X" — confusing during an actual storm.
     const ISLAND_TZ = "America/Barbados";
+    // The feed's hourly/sunrise times are naive island-local strings
+    // ("2026-11-08T13:00"), which new Date() would read in the viewer's zone.
+    // Pin them to Barbados, UTC-4 all year with no DST (#118). Strings that
+    // already carry Z or an offset pass through unchanged.
+    const parseIslandTime = (iso) =>
+      new Date(/T\d{2}:\d{2}(:\d{2})?$/.test(iso) ? iso + "-04:00" : iso);
     // Open-Meteo daily.date is already a YYYY-MM-DD calendar date in the island
     // TZ, so its weekday is timezone-independent. We parse as UTC midnight and
     // format in UTC: formatting in a negative-offset zone (island is UTC-4) would
@@ -233,7 +239,7 @@
     const HOUR_FMT = new Intl.DateTimeFormat("en-GB", { timeZone: ISLAND_TZ, hour: "numeric", hour12: true });
     const hourLabel = (iso) => {
       if (!iso) return "—";
-      const d = new Date(iso);
+      const d = parseIslandTime(iso);
       if (!Number.isFinite(d.getTime())) return "—";
       // Intl gives "1 pm" / "12 am" with a space; collapse to "1pm".
       return HOUR_FMT.format(d).toLowerCase().replace(/\s/g, "");
@@ -243,7 +249,7 @@
       // browser's local TZ — a UK user opening this saw sunrise/sunset and
       // storm-arrival times shifted by their offset.
       if (!iso) return "—";
-      const d = new Date(iso);
+      const d = parseIslandTime(iso);
       if (!Number.isFinite(d.getTime())) return "—";
       // Intl returns e.g. "1:24 pm" with en-GB + hour12.
       return ISLAND_TIME_FMT.format(d).toLowerCase();
@@ -317,13 +323,21 @@
         "Radar " + new Date(f.time * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     }
 
+    // Play/Pause buttons: the visible label is the accessible name (#106); the glyph is decoration.
+    function setToggle(btn, glyph, label) {
+      const g = document.createElement("span");
+      g.setAttribute("aria-hidden", "true");
+      g.textContent = glyph;
+      btn.replaceChildren(...(glyph ? [g, " " + label] : [label]));
+    }
+
     function toggleRadar() {
       const btn = document.getElementById("radar-toggle");
       if (radarTimer) {
-        clearInterval(radarTimer); radarTimer = null; btn.textContent = "▶ Play radar"; return;
+        clearInterval(radarTimer); radarTimer = null; setToggle(btn, "▶", "Play radar"); return;
       }
       if (!radarFrames.length) return;
-      btn.textContent = "⏸ Pause";
+      setToggle(btn, "⏸", "Pause radar");
       radarTimer = setInterval(() => {
         showRadarFrame((radarIdx + 1) % radarFrames.length);
       }, 700);
@@ -407,14 +421,14 @@
       const time = document.getElementById("sat-time");
       if (satTimer) {
         clearInterval(satTimer); satTimer = null;
-        btn.textContent = "▶ Play loop"; time.textContent = "";
+        setToggle(btn, "▶", "Play loop"); time.textContent = "";
         setSatellite();
         return;
       }
-      btn.textContent = "… loading";
+      setToggle(btn, "", "Loading loop…");
       await loadSatFrames();
-      if (!satFrames.length) { btn.textContent = "▶ Play loop"; return; }
-      btn.textContent = "⏸ Pause";
+      if (!satFrames.length) { setToggle(btn, "▶", "Play loop"); return; }
+      setToggle(btn, "⏸", "Pause loop");
       satIdx = 0;
       img.onerror = null;
       satTimer = setInterval(() => {
@@ -542,6 +556,11 @@
         `with a ${windWordKt(w.windKt)} ${w.windFrom} breeze.${rain}${todayClause}`;
     }
 
+    // The card icons are decorative, so the condition (the server's WMO
+    // description, as for "Right now") is read as hidden text instead (#103).
+    // the server uses "—" for an unmapped weather code
+    const condSr = (desc) => desc && desc !== "—" ? `<span class="sr-only">${escapeHtml(desc)}. </span>` : "";
+
     function renderForecast(o) {
       const wrap = document.getElementById("days");
       const age = document.getElementById("forecast-age");
@@ -554,8 +573,8 @@
         const dow = idx === 0 ? "Today" : islandDOW(d.date);
         const rain = d.rainProb != null ? rainChance("rain", d.rainProb) : "";
         const thunder = thunderChance(d.thunderProb);
-        return `<div class="day"><div class="dow">${dow}</div><div class="ico" aria-hidden="true">${icon(d.code)}</div>
-          <div><span class="hi">${fmtDeg(d.maxC)}</span> <span class="lo">${fmtDeg(d.minC)}</span></div>${rain}${thunder}</div>`;
+        return `<div class="day"><div class="dow">${dow}</div><div class="ico" aria-hidden="true">${icon(d.code)}</div>${condSr(d.description)}
+          <div><span class="sr-only">High </span><span class="hi">${fmtDeg(d.maxC)}</span> <span class="sr-only">low </span><span class="lo">${fmtDeg(d.minC)}</span></div>${rain}${thunder}</div>`;
       }).join("");
       const wet = o.daily.filter(d => (d.rainProb ?? 0) >= 50).length;
       const hi = Math.max(...o.daily.map(d => d.maxC));
@@ -572,11 +591,13 @@
     // Rain and thunder chances for the hourly strip and 7-day cards. The emoji
     // are hidden from screen readers and replaced with words, because a title
     // attribute alone often isn't announced.
-    const rainChance = (cls, pct) =>
-      `<div class="${cls}" title="Chance of rain"><span aria-hidden="true">💧</span> ${pct}%<span class="sr-only"> chance of rain</span></div>`;
-    const thunderChance = (pct) => (pct ?? 0) >= 30
-      ? `<div class="th" title="Chance of thunderstorms"><span aria-hidden="true">⚡</span> ${pct}%<span class="sr-only"> chance of thunderstorms</span></div>`
+    const rainChance = (cls, pct, sep = "") =>
+      `<div class="${cls}" title="Chance of rain"><span aria-hidden="true">💧</span> ${pct}%<span class="sr-only"> chance of rain${sep}</span></div>`;
+    const thunderChance = (pct, sep = "") => (pct ?? 0) >= 30
+      ? `<div class="th" title="Chance of thunderstorms"><span aria-hidden="true">⚡</span> ${pct}%<span class="sr-only"> chance of thunderstorms${sep}</span></div>`
       : "";
+
+    const hasTh = (x) => (x.thunderProb ?? 0) >= 30;
 
     function renderRainWind(o, w) {
       const wrap = document.getElementById("hours");
@@ -584,8 +605,8 @@
       if (!o || !o.hourly || !o.hourly.length) { sum.textContent = "Hourly outlook unavailable right now."; wrap.innerHTML = ""; document.getElementById("rain-attribution").hidden = true; return; }
       const h = o.hourly;
       wrap.innerHTML = h.map(x => `
-        <div class="hr"><div class="t">${hourLabel(x.time)}</div><div class="ico" aria-hidden="true">${icon(x.code)}</div>
-          ${rainChance("r", x.rainProb ?? 0)}${thunderChance(x.thunderProb)}<div class="w">${fromKmh(x.windKmh)} ${wUnit()}</div></div>`).join("");
+        <div class="hr"><div class="t">${hourLabel(x.time)}</div><div class="ico" aria-hidden="true">${icon(x.code)}</div>${condSr(x.description)}
+          ${rainChance("r", x.rainProb ?? 0, hasTh(x) ? "" : ", ")}${thunderChance(x.thunderProb, ", ")}<div class="w"><span class="sr-only">wind </span>${fromKmh(x.windKmh)} ${wUnit()}</div></div>`).join("");
       // Google's chances require attribution wherever they appear.
       document.getElementById("rain-attribution").hidden = !(o.sources && o.sources.rain === "google");
       let peak = h[0];
@@ -745,10 +766,10 @@
       const dayEl = document.getElementById("sky-day");
       if (!a) { g.innerHTML = `<div class="wx-tile"><div class="lbl">Sun &amp; moon</div><div class="val">—</div></div>`; if (dayEl) dayEl.textContent = ""; return; }
       if (dayEl) {
-        const d = a.sunrise ? new Date(a.sunrise) : new Date();
-        const today = new Date();
-        const sameDay = d.toDateString() === today.toDateString();
-        const ds = d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+        const d = a.sunrise ? parseIslandTime(a.sunrise) : new Date();
+        const dayFmt = (x) => x.toLocaleDateString([], { timeZone: ISLAND_TZ, weekday: "long", day: "numeric", month: "long" });
+        const ds = dayFmt(d);
+        const sameDay = ds === dayFmt(new Date());
         dayEl.innerHTML = `Sunrise, sunset and moon for <b>${sameDay ? "today" : ds}</b>${sameDay ? " (" + ds + ")" : ""}.`;
       }
       const dl = a.daylightSeconds != null
@@ -1003,7 +1024,7 @@
       const civilActive = !!(s.civilAlert && s.civilAlert.active);
       if ((curRank > 0 || s.storms.length || civilActive) && curRank > (render._autoLvl ?? -1)) {
         const st = document.getElementById("storms");
-        if (st) st.open = true;
+        if (st) setCardOpen(st, true);
       }
       render._autoLvl = curRank;
 
@@ -1031,26 +1052,58 @@
     // see one thing at a time. Cards carry data-page; we show the active page's
     // cards and hide the rest. Hash-routed so pages are linkable + Back works.
     const PAGES = ["home", "forecast", "sea", "radar", "storms", "shelters", "prep"];
+    // Cards are heading + button disclosures (#107): the button's aria-expanded
+    // and the body's hidden attribute are the single source of truth.
+    // A stale cached index.html can briefly pair with this app.js (app.js
+    // revalidates immediately, #97) and still have native <details> cards.
+    function setCardOpen(card, open) {
+      if (card.tagName === "DETAILS") { card.open = open; return; }
+      const btn = card.querySelector(".card-toggle"), body = card.querySelector(".card-body");
+      if (!btn || !body) return;
+      btn.setAttribute("aria-expanded", String(open));
+      body.hidden = !open;
+    }
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest(".card-toggle");
+      if (btn) setCardOpen(btn.closest(".card"), btn.getAttribute("aria-expanded") !== "true");
+    });
+    document.querySelectorAll('.card[data-start="closed"]').forEach((c) => setCardOpen(c, false));
+    let curPage = "home";
     // Returns null for hashes that aren't a page (e.g. the skip link's #main),
     // so those never reroute the user (#100).
-    let curPage = "home";
     function pageFromHash() {
       const h = (location.hash || "").replace("#", "");
       return PAGES.includes(h) ? h : null;
     }
-    function showPage(page, scroll = true) {
+    // Page names match the nav labels; home keeps the full document title (#104).
+    const PAGE_TITLES = { forecast: "7-day forecast", sea: "Beach & sea", radar: "Radar", storms: "Storms", shelters: "Shelters", prep: "Get ready" };
+    const HOME_TITLE = document.title;
+    function showPage(page, scroll = true, focus = false) {
       curPage = page;
       document.querySelectorAll(".card[data-page]").forEach((c) => {
         const on = c.dataset.page === page;
         c.hidden = !on;
-        if (on && c.tagName === "DETAILS") c.open = true; // pages show content in full
+        if (on) setCardOpen(c, true); // pages show content in full
       });
       document.querySelectorAll(".section-nav a").forEach((a) => {
-        a.classList.toggle("active", a.getAttribute("href") === "#" + page);
+        const on = a.getAttribute("href") === "#" + page;
+        a.classList.toggle("active", on);
+        if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
       });
+      document.title = PAGE_TITLES[page] ? PAGE_TITLES[page] + " | Bim Weather" : HOME_TITLE;
       // Leaflet sizes wrong while its container is display:none — nudge on show.
       if (page === "radar" && map) requestAnimationFrame(() => map.invalidateSize());
       if (scroll) window.scrollTo(0, 0);
+      // User-initiated change only: the page's heading button names the new page for screen readers (#104).
+      if (focus) {
+        const t = document.querySelector(`.card[data-page="${page}"]:not([hidden]) .card-toggle`);
+        if (t) {
+          t.focus({ preventScroll: true });
+          // On short screens with alerts above the layout the toggle can sit below the fold (2.4.11);
+          // scroll-margin on .card-toggle keeps it clear of the sticky nav.
+          t.scrollIntoView({ block: "nearest" });
+        }
+      }
     }
     function setupRouter() {
       // Skip link (#100): focus main without touching location.hash, so no dead
@@ -1064,8 +1117,9 @@
       });
       showPage(pageFromHash() ?? "home");
       window.addEventListener("hashchange", () => {
-        const page = pageFromHash();
-        if (page) showPage(page);
+        // Back to the hash-less URL is Today; other unknown hashes (#main) are ignored.
+        const page = location.hash ? pageFromHash() : "home";
+        if (page) showPage(page, true, page !== curPage);
       });
     }
 

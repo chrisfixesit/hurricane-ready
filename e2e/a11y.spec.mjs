@@ -140,7 +140,7 @@ test("skip link target is not covered by the sticky nav at 320px", async ({ page
   const r = await page.evaluate(() => {
     const top = (s) => document.querySelector(s).getBoundingClientRect().top;
     return { nav: document.querySelector(".section-nav").getBoundingClientRect().bottom,
-      main: top("main"), summary: top("main .card:not([hidden]) summary") };
+      main: top("main"), summary: top("main .card:not([hidden]) .card-toggle") };
   });
   expect(r.main).toBeGreaterThanOrEqual(r.nav);
   expect(r.summary).toBeGreaterThanOrEqual(r.nav);
@@ -212,5 +212,317 @@ for (const theme of ["light", "dark"]) {
     const note = page.locator("#storms-body small", { hasText: "may track very close" });
     await expect(note).toBeVisible();
     expect(await ratio(page, "#storms-body small.pass-close")).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+}
+
+// (#107) every card title is an h2 holding the disclosure button so heading
+// navigation lists each section; sub-headings sit below it without skipping
+const CARD_TITLES = {
+  home: ["Right now in", "Rain & wind — next 24 hours", "Things to do in Barbados"],
+  forecast: ["Next 7 days"],
+  sea: ["Beach, sea & sky"],
+  radar: ["Rain radar & satellite"],
+  storms: ["Storms & tropics"],
+  shelters: ["Emergency & shelters"],
+  prep: ["Get ready"],
+};
+
+async function openRoute(page, route) {
+  await load(page, "light");
+  await page.evaluate((h) => { location.hash = h; }, route);
+  await expect(page.locator(`.card[data-page="${route}"]`).first()).toBeVisible();
+}
+
+for (const [route, titles] of Object.entries(CARD_TITLES)) {
+  test(`#${route}: card titles are h2 headings with a toggle button`, async ({ page }) => {
+    await openRoute(page, route);
+    const found = await page.evaluate((r) =>
+      [...document.querySelectorAll(`.card[data-page="${r}"] > h2.card-h`)]
+        .filter((h) => h.offsetParent !== null)
+        .map((h) => h.textContent.replace(/\s+/g, " ").trim()), route);
+    expect(found).toHaveLength(titles.length);
+    titles.forEach((t, i) => expect(found[i]).toContain(t));
+    // the h2 holds a button whose accessible name is the title
+    for (const t of titles) {
+      await expect(page.getByRole("heading", { level: 2 }).getByRole("button", { name: t, exact: false }).first()).toBeVisible();
+    }
+  });
+
+  test(`#${route}: heading levels never skip`, async ({ page }) => {
+    await openRoute(page, route);
+    const levels = await page.evaluate(() =>
+      [...document.querySelectorAll("h1,h2,h3,h4,h5,h6")]
+        .filter((h) => h.getClientRects().length > 0)
+        .map((h) => Number(h.tagName[1])));
+    expect(levels[0]).toBe(1);
+    levels.forEach((l, i) => { if (i) expect(l - levels[i - 1], `h${l} after h${levels[i - 1]}`).toBeLessThanOrEqual(1); });
+  });
+}
+
+for (const how of ["click", "Enter", "Space"]) {
+  test(`card toggle button opens and closes its body on ${how}`, async ({ page }) => {
+    await openRoute(page, "forecast");
+    const card = page.locator('.card[data-page="forecast"]').first();
+    const btn = card.locator("h2 > button.card-toggle");
+    const body = card.locator(".card-body");
+    const controls = await btn.getAttribute("aria-controls");
+    expect(controls).toBeTruthy();
+    expect(await page.evaluate((id) => !!document.getElementById(id), controls)).toBe(true);
+    expect(await body.getAttribute("id")).toBe(controls);
+    const flip = async () => {
+      if (how === "click") await btn.click();
+      else { await btn.focus(); await page.keyboard.press(how); }
+    };
+    await expect(btn).toHaveAttribute("aria-expanded", "true");
+    await expect(body).toBeVisible();
+    await flip();
+    await expect(btn).toHaveAttribute("aria-expanded", "false");
+    await expect(body).toBeHidden();
+    await flip();
+    await expect(btn).toHaveAttribute("aria-expanded", "true");
+    await expect(body).toBeVisible();
+  });
+}
+
+test("next Tab after the skip link lands on the first card toggle button", async ({ page }) => {
+  await load(page, "light");
+  await page.locator(".skip-link").focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Tab");
+  expect(await page.evaluate(() => {
+    const first = document.querySelector(".card:not([hidden]) > h2 > .card-toggle");
+    return !!first && document.activeElement === first;
+  })).toBe(true);
+});
+
+// A stale cached index.html can still have <details> cards when the new app.js
+// runs (#97), so the router must open those instead of throwing.
+test("router opens a native <details> card from a stale index.html", async ({ page }) => {
+  await load(page, "light");
+  const startsOpen = await page.evaluate(() => {
+    const d = document.createElement("details");
+    d.id = "stale-card"; d.className = "card"; d.dataset.page = "forecast";
+    d.innerHTML = "<summary>Old card</summary><p>body</p>";
+    document.querySelector("main").append(d);
+    return d.open;
+  });
+  expect(startsOpen).toBe(false);
+  // opening goes through the router
+  await page.evaluate(() => { location.hash = "forecast"; });
+  await page.waitForFunction(() => document.getElementById("stale-card").open === true);
+  // closing goes through the shared helper
+  await page.evaluate(() => setCardOpen(document.getElementById("stale-card"), false));
+  await page.waitForFunction(() => document.getElementById("stale-card").open === false);
+});
+
+// (#103) forecast cards: the icon is decorative, so the condition and the
+// high/low labels must reach screen readers as visually-hidden text. The
+// outlook comes from Open-Meteo upstream, so overlay a fixed one on
+// /api/status to make these deterministic (no network needed).
+const OUTLOOK = {
+  daily: Array.from({ length: 7 }, (_, i) => ({
+    date: `2026-11-${String(9 + i).padStart(2, "0")}`, code: 81, description: "Showers",
+    maxC: 31, minC: 25, rainProb: 40, thunderProb: 35,
+  })),
+  // naive island-local times, exactly as the real API sends them (#118)
+  hourly: Array.from({ length: 4 }, (_, i) => ({
+    time: `2026-11-09T${String(10 + i).padStart(2, "0")}:00`, code: 81, description: "Showers",
+    rainProb: 40, windKmh: 16, gustKmh: 20, thunderProb: 0,
+  })),
+  sources: {},
+};
+
+async function loadForecast(page) {
+  await page.route("**/api/status", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({ json: { ...(await res.json()), outlook: OUTLOOK } });
+  });
+  await load(page, "light");
+  const days = page.locator("#days .day");
+  await expect(days).toHaveCount(7);
+  return days;
+}
+// the viewer's timezone must not change what the island hour reads as (#118)
+for (const timezoneId of ["UTC", "Europe/London", "America/Barbados"]) {
+  test.describe(`hourly labels in ${timezoneId}`, () => {
+    test.use({ timezoneId });
+    test("naive island times read as island hours", async ({ page }) => {
+      await loadForecast(page);
+      await expect(page.locator("#hours .hr .t").first()).toHaveText("10am");
+    });
+  });
+}
+
+const text = (loc) => loc.evaluate((el) => el.textContent.replace(/\s+/g, " ").trim());
+
+test("7-day cards expose the condition and High/low labels to screen readers", async ({ page }) => {
+  const days = await loadForecast(page);
+  expect(await text(days.nth(1))).toMatch(/Showers\. High 31°\s*low 25°.*40% chance of rain.*35% chance of thunderstorms/);
+  // the icon stays hidden from assistive tech
+  await expect(days.first().locator(".ico")).toHaveAttribute("aria-hidden", "true");
+});
+
+test("hourly cards expose the condition and wind to screen readers", async ({ page }) => {
+  await loadForecast(page);
+  const hrs = page.locator("#hours .hr");
+  await expect(hrs).toHaveCount(4);
+  expect(await text(hrs.first())).toMatch(/Showers\. .*40% chance of rain, wind 16 km\/h/);
+});
+
+test(".sr-only text is visually hidden", async ({ page }) => {
+  const days = await loadForecast(page);
+  const box = await days.first().locator(".sr-only").first().evaluate((el) => {
+    const cs = getComputedStyle(el), r = el.getBoundingClientRect();
+    return { clip: cs.clip, w: r.width, h: r.height };
+  });
+  expect(box.clip).not.toBe("auto");
+  expect(box.w).toBeLessThanOrEqual(1);
+  expect(box.h).toBeLessThanOrEqual(1);
+});
+
+test("day card visible text is unchanged by the hidden labels", async ({ page }) => {
+  const days = await loadForecast(page);
+  // visible = every text node whose parent is not .sr-only
+  const visible = await days.nth(1).evaluate((el) => {
+    const out = [];
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) if (!n.parentElement.closest(".sr-only")) out.push(n.textContent);
+    return out.join(" ").replace(/\s+/g, " ").trim();
+  });
+  expect(visible).toMatch(/^[A-Z][a-z]{2} \S+ 31° 25° 💧 40% ⚡ 35%$/);
+});
+
+// (#103) the same cards through the accessibility tree rather than the DOM:
+// textContent would still pass if the labels were hidden from assistive tech.
+test("forecast cards expose condition and High/low in the accessibility tree", async ({ page }) => {
+  const days = await loadForecast(page);
+  // hourly strip is on Today; check it before moving to the forecast page
+  await expect(page.locator("#hours .hr").first()).toMatchAriaSnapshot("- text: /10am Showers\\. .*40% chance of rain, wind 16 km\\/h/");
+  await page.evaluate(() => { location.hash = "#forecast"; });
+  await expect(days.nth(1)).toBeVisible();
+  await expect(days.nth(1)).toMatchAriaSnapshot("- text: /Showers\\. High 31° low 25° 40% chance of rain 35% chance of thunderstorms/");
+});
+
+// (#104) page changes: focus, aria-current and title
+const PAGES = [
+  ["home", "Today", /^Bim Weather \| Barbados Weather & Storm Watch$/],
+  ["forecast", "7-day", /^7-day forecast \| Bim Weather$/],
+  ["sea", "Beach & sea", /^Beach & sea \| Bim Weather$/],
+  ["radar", "Radar", /^Radar \| Bim Weather$/],
+  ["storms", "Storms", /^Storms \| Bim Weather$/],
+  ["shelters", "Shelters", /^Shelters \| Bim Weather$/],
+  ["prep", "Get ready", /^Get ready \| Bim Weather$/],
+];
+
+// the real card heading button names
+const HEADINGS = { forecast: /Next 7 days/, sea: /Beach, sea & sky/, radar: /Rain radar & satellite/, storms: /Storms & tropics/, shelters: /Emergency & shelters/, prep: /Get ready/ };
+
+async function expectPage(page, id, title) {
+  await expect(page).toHaveTitle(title);
+  const current = page.locator('.section-nav a[aria-current="page"]');
+  await expect(current).toHaveCount(1);
+  await expect(current).toHaveAttribute("href", "#" + id);
+}
+
+for (const [id, label, title] of PAGES.filter(([id]) => id !== "home")) {
+  for (const how of ["click", "Enter"]) {
+    test(`${how} on the ${label} nav link focuses the page heading and updates title/aria-current`, async ({ page }) => {
+      await page.goto(BASE + "/");
+      const link = page.locator(`.section-nav a[href="#${id}"]`);
+      if (how === "click") await link.click();
+      else { await link.focus(); await page.keyboard.press("Enter"); }
+      await expectPage(page, id, title);
+      const toggle = page.locator(`.card[data-page="${id}"]:not([hidden]) .card-toggle`).first();
+      await expect(toggle).toBeFocused();
+      await expect(toggle).toHaveAccessibleName(HEADINGS[id]);
+    });
+  }
+}
+
+test("returning to Today restores the full title and focuses its heading", async ({ page }) => {
+  await page.goto(BASE + "/#storms");
+  await page.locator('.section-nav a[href="#home"]').click();
+  await expectPage(page, "home", PAGES[0][2]);
+  await expect(page.locator('.card[data-page="home"] .card-toggle').first()).toBeFocused();
+});
+
+test("initial load of /#storms sets title and aria-current without stealing focus", async ({ page }) => {
+  await page.goto(BASE + "/#storms");
+  await expectPage(page, "storms", /^Storms \| Bim Weather$/);
+  // let the first status render (which re-asserts the page) settle
+  await page.waitForLoadState("networkidle");
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+});
+
+test("browser Back returns to the previous page and updates title and aria-current", async ({ page }) => {
+  await page.goto(BASE + "/");
+  await page.locator('.section-nav a[href="#storms"]').click();
+  await expectPage(page, "storms", /^Storms \| Bim Weather$/);
+  await page.goBack();
+  await expectPage(page, "home", PAGES[0][2]);
+});
+
+// (#106) Play/Pause buttons: the visible label must be the accessible name
+// (WCAG 2.5.3), and the name tracks the state. Radar and satellite upstreams
+// are stubbed so both buttons are deterministic.
+test("radar and satellite play buttons: visible label is the accessible name", async ({ page }) => {
+  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  await page.route("https://api.rainviewer.com/**", (r) => r.fulfill({
+    json: { host: "https://tilecache.rainviewer.com", radar: { past: [{ time: 1, path: "/a" }, { time: 2, path: "/b" }], nowcast: [] } },
+  }));
+  await page.route("https://tilecache.rainviewer.com/**", (r) => r.fulfill({ body: PNG, contentType: "image/png" }));
+  // loop frames are held until released so the transient "Loading loop…" state is observable
+  let release; const gate = new Promise((res) => { release = res; });
+  await page.route("https://cdn.star.nesdis.noaa.gov/**", async (r) => {
+    if (r.request().url().includes("_GOES19-ABI-")) await gate;
+    r.fulfill({ body: PNG, contentType: "image/jpeg" });
+  });
+  await page.goto(BASE, { waitUntil: "load" });
+  await page.evaluate(() => { location.hash = "#radar"; });
+  const radar = page.locator("#radar-toggle");
+  const sat = page.locator("#sat-toggle");
+  await expect(sat).toBeVisible();
+  // toggleRadar is a no-op until the stubbed frames arrive; showRadarFrame replaces the "—" placeholder
+  await expect(page.locator("#radar-time")).not.toHaveText("—");
+  await expect(sat).toHaveAccessibleName("Play loop");
+  for (const [btn, play, pause] of [[radar, "Play radar", "Pause radar"], [sat, "Play loop", "Pause loop"]]) {
+    await expect(btn).not.toHaveAttribute("aria-label", /.*/);
+    await expect(btn).toHaveAccessibleName(play); // glyph is aria-hidden, so name starts with the visible text
+    await expect(btn.locator("span[aria-hidden=true]")).toHaveCount(1);
+    await btn.click();
+    if (btn === sat) { await expect(btn).toHaveAccessibleName("Loading loop…"); release(); }
+    await expect(btn).toHaveAccessibleName(pause);
+    await btn.click();
+    await expect(btn).toHaveAccessibleName(play);
+  }
+});
+
+// (#104) alerts push the layout down: after a nav click the focused heading
+// button must still be fully in view (and below the sticky nav on mobile).
+for (const [w, h] of [[320, 480], [1280, 500]]) {
+  test(`focused page heading stays in view with alerts showing at ${w}x${h}`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto(BASE, { waitUntil: "load" });
+    await expect(page.locator("#banner-title")).not.toHaveText("Checking the skies…", { timeout: 15000 });
+    await page.evaluate(() => {
+      for (const id of ["civil-alert", "alerts-bar"]) {
+        const el = document.getElementById(id);
+        el.hidden = false;
+        el.textContent = "Test alert. ".repeat(40);
+      }
+    });
+    for (const id of ["storms", "prep"]) {
+      await page.locator(`.section-nav a[href="#${id}"]`).click();
+      const toggle = page.locator(`.card[data-page="${id}"]:not([hidden]) .card-toggle`).first();
+      await expect(toggle).toBeFocused();
+      const r = await page.evaluate((id) => {
+        const t = document.querySelector(`.card[data-page="${id}"] .card-toggle`).getBoundingClientRect();
+        return { top: t.top, bottom: t.bottom, nav: document.querySelector(".section-nav").getBoundingClientRect().bottom,
+          vh: innerHeight, mobileNav: document.querySelector(".section-nav").getBoundingClientRect().width > innerWidth / 2 };
+      }, id);
+      expect(r.top).toBeGreaterThanOrEqual(0);
+      expect(r.bottom).toBeLessThanOrEqual(r.vh);
+      if (r.mobileNav) expect(r.top).toBeGreaterThanOrEqual(r.nav);
+    }
   });
 }
