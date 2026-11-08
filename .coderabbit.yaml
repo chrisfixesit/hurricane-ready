@@ -9,15 +9,15 @@ reviews:
     enabled: true
     # Authors can't wave findings through with @coderabbitai approve/resolve
     allow_author_approval: false
-    # Above this risk (see merge_risk_instructions) CodeRabbit withholds its
-    # approval. That is advisory, not a merge gate: whoever merges decides.
-    max_merge_risk: moderate
+    # One-person team, so CodeRabbit is the reviewer: approve up to high risk
+    # once findings are resolved. Critical PRs, and the paths in the overrides
+    # below, never get its approval and need a human.
+    max_merge_risk: high
     # Lockfiles are excluded from review below, so a dependency-only change
     # must never be auto-approved; it needs a human look.
     overrides:
       - paths:
           - "**/package-lock.json"
-          - "**/.terraform.lock.hcl"
         enabled: false
       # The risk rating is a judgement, so a small change here could still
       # rate low; the threat level and how it's briefed always need a human.
@@ -46,9 +46,6 @@ reviews:
 
   path_filters:
     - "!**/node_modules/**"
-    - "!**/.terraform/**"
-    - "!**/.terraform.lock.hcl"
-    - "!**/*.tfstate*"
     - "!**/package-lock.json"
     - "!docs/superpowers/**"
 
@@ -87,7 +84,10 @@ reviews:
         After changing any file in the SHELL list in web/sw.js (index.html, app.js,
         the manifest, icons) or sw.js itself, the CACHE version must be bumped;
         CloudFront invalidation is manual. Check accessibility and
-        plain language for a public audience.
+        plain language for a public audience. The CSP is set in
+        chrisfixesit/tofu-or-not-tofu (accounts/sandbox/hurricane-ready/cloudfront.tf):
+        a new third-party origin (tiles, iframes, scripts, fetches) needs a
+        matching CSP change there before it's released, or browsers block it.
     - path: "{Dockerfile,compose*.yaml}"
       instructions: >
         Keep the container hardening (non-root, read-only filesystem, dropped
@@ -103,10 +103,6 @@ reviews:
     gitleaks:
       enabled: true
     eslint:
-      enabled: true
-    checkov:
-      enabled: true
-    tflint:
       enabled: true
     hadolint:
       enabled: true
