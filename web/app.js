@@ -1067,7 +1067,10 @@
       const h = (location.hash || "").replace("#", "");
       return PAGES.includes(h) ? h : null;
     }
-    function showPage(page, scroll = true) {
+    // Page names match the nav labels; home keeps the full document title (#104).
+    const PAGE_TITLES = { forecast: "7-day forecast", sea: "Beach & sea", radar: "Radar", storms: "Storms", shelters: "Shelters", prep: "Get ready" };
+    const HOME_TITLE = document.title;
+    function showPage(page, scroll = true, focus = false) {
       curPage = page;
       document.querySelectorAll(".card[data-page]").forEach((c) => {
         const on = c.dataset.page === page;
@@ -1075,11 +1078,16 @@
         if (on) setCardOpen(c, true); // pages show content in full
       });
       document.querySelectorAll(".section-nav a").forEach((a) => {
-        a.classList.toggle("active", a.getAttribute("href") === "#" + page);
+        const on = a.getAttribute("href") === "#" + page;
+        a.classList.toggle("active", on);
+        if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
       });
+      document.title = PAGE_TITLES[page] ? PAGE_TITLES[page] + " | Bim Weather" : HOME_TITLE;
       // Leaflet sizes wrong while its container is display:none — nudge on show.
       if (page === "radar" && map) requestAnimationFrame(() => map.invalidateSize());
       if (scroll) window.scrollTo(0, 0);
+      // User-initiated change only: the page's heading button names the new page for screen readers (#104).
+      if (focus) document.querySelector(`.card[data-page="${page}"]:not([hidden]) .card-toggle`)?.focus({ preventScroll: true });
     }
     function setupRouter() {
       // Skip link (#100): focus main without touching location.hash, so no dead
@@ -1093,8 +1101,9 @@
       });
       showPage(pageFromHash() ?? "home");
       window.addEventListener("hashchange", () => {
-        const page = pageFromHash();
-        if (page) showPage(page);
+        // Back to the hash-less URL is Today; other unknown hashes (#main) are ignored.
+        const page = location.hash ? pageFromHash() : "home";
+        if (page) showPage(page, true, page !== curPage);
       });
     }
 

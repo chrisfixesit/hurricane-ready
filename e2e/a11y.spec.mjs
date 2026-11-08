@@ -352,3 +352,62 @@ test("forecast cards expose condition and High/low in the accessibility tree", a
   await expect(days.nth(1)).toBeVisible();
   await expect(days.nth(1)).toMatchAriaSnapshot("- text: /Showers\\. High 31° low 25° 40% chance of rain 35% chance of thunderstorms/");
 });
+
+// (#104) page changes: focus, aria-current and title
+const PAGES = [
+  ["home", "Today", /^Bim Weather \| Barbados Weather & Storm Watch$/],
+  ["forecast", "7-day", /^7-day forecast \| Bim Weather$/],
+  ["sea", "Beach & sea", /^Beach & sea \| Bim Weather$/],
+  ["radar", "Radar", /^Radar \| Bim Weather$/],
+  ["storms", "Storms", /^Storms \| Bim Weather$/],
+  ["shelters", "Shelters", /^Shelters \| Bim Weather$/],
+  ["prep", "Get ready", /^Get ready \| Bim Weather$/],
+];
+
+// regexes loose enough for the existing card titles
+const HEADINGS = { forecast: /7 days/i, sea: /sea|beach/i, radar: /radar/i, storms: /storm|tropic/i, shelters: /shelter/i, prep: /ready|prep|kit/i };
+
+async function expectPage(page, id, title) {
+  await expect(page).toHaveTitle(title);
+  const current = page.locator('.section-nav a[aria-current="page"]');
+  await expect(current).toHaveCount(1);
+  await expect(current).toHaveAttribute("href", "#" + id);
+}
+
+for (const [id, label, title] of PAGES.filter(([id]) => id !== "home")) {
+  for (const how of ["click", "Enter"]) {
+    test(`${how} on the ${label} nav link focuses the page heading and updates title/aria-current`, async ({ page }) => {
+      await page.goto(BASE + "/");
+      const link = page.locator(`.section-nav a[href="#${id}"]`);
+      if (how === "click") await link.click();
+      else { await link.focus(); await page.keyboard.press("Enter"); }
+      await expectPage(page, id, title);
+      const toggle = page.locator(`.card[data-page="${id}"]:not([hidden]) .card-toggle`).first();
+      await expect(toggle).toBeFocused();
+      await expect(toggle).toHaveAccessibleName(HEADINGS[id]);
+    });
+  }
+}
+
+test("returning to Today restores the full title and focuses its heading", async ({ page }) => {
+  await page.goto(BASE + "/#storms");
+  await page.locator('.section-nav a[href="#home"]').click();
+  await expectPage(page, "home", PAGES[0][2]);
+  await expect(page.locator('.card[data-page="home"] .card-toggle').first()).toBeFocused();
+});
+
+test("initial load of /#storms sets title and aria-current without stealing focus", async ({ page }) => {
+  await page.goto(BASE + "/#storms");
+  await expectPage(page, "storms", /^Storms \| Bim Weather$/);
+  // let the first status render (which re-asserts the page) settle
+  await page.waitForLoadState("networkidle");
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+});
+
+test("browser Back returns to the previous page and updates title and aria-current", async ({ page }) => {
+  await page.goto(BASE + "/");
+  await page.locator('.section-nav a[href="#storms"]').click();
+  await expectPage(page, "storms", /^Storms \| Bim Weather$/);
+  await page.goBack();
+  await expectPage(page, "home", PAGES[0][2]);
+});
