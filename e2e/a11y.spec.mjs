@@ -164,3 +164,68 @@ test("skip made before the first status render is not undone", async ({ page }) 
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await expect(page.locator("main#main")).toBeFocused();
 });
+
+// (#103) forecast cards: the icon is decorative, so the condition and the
+// high/low labels must reach screen readers as visually-hidden text. The
+// outlook comes from Open-Meteo upstream, so overlay a fixed one on
+// /api/status to make these deterministic (no network needed).
+const OUTLOOK = {
+  daily: Array.from({ length: 7 }, (_, i) => ({
+    date: `2026-11-${String(9 + i).padStart(2, "0")}`, code: 81, description: "Showers",
+    maxC: 31, minC: 25, rainProb: 40, thunderProb: 35,
+  })),
+  hourly: Array.from({ length: 4 }, (_, i) => ({
+    time: `2026-11-09T${String(10 + i).padStart(2, "0")}:00`, code: 81, description: "Showers",
+    rainProb: 40, windKmh: 16, gustKmh: 20, thunderProb: 0,
+  })),
+  sources: {},
+};
+
+async function loadForecast(page) {
+  await page.route("**/api/status", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({ json: { ...(await res.json()), outlook: OUTLOOK } });
+  });
+  await load(page, "light");
+  const days = page.locator("#days .day");
+  await expect(days).toHaveCount(7);
+  return days;
+}
+const text = (loc) => loc.evaluate((el) => el.textContent.replace(/\s+/g, " ").trim());
+
+test("7-day cards expose the condition and High/low labels to screen readers", async ({ page }) => {
+  const days = await loadForecast(page);
+  expect(await text(days.nth(1))).toMatch(/Showers\. High 31°\s*low 25°.*40% chance of rain.*35% chance of thunderstorms/);
+  // the icon stays hidden from assistive tech
+  await expect(days.first().locator(".ico")).toHaveAttribute("aria-hidden", "true");
+});
+
+test("hourly cards expose the condition and wind to screen readers", async ({ page }) => {
+  await loadForecast(page);
+  const hrs = page.locator("#hours .hr");
+  await expect(hrs).toHaveCount(4);
+  expect(await text(hrs.first())).toMatch(/Showers\. .*40% chance of rain, wind 16 km\/h/);
+});
+
+test(".sr-only text is visually hidden", async ({ page }) => {
+  const days = await loadForecast(page);
+  const box = await days.first().locator(".sr-only").first().evaluate((el) => {
+    const cs = getComputedStyle(el), r = el.getBoundingClientRect();
+    return { clip: cs.clip, w: r.width, h: r.height };
+  });
+  expect(box.clip).not.toBe("auto");
+  expect(box.w).toBeLessThanOrEqual(1);
+  expect(box.h).toBeLessThanOrEqual(1);
+});
+
+test("day card visible text is unchanged by the hidden labels", async ({ page }) => {
+  const days = await loadForecast(page);
+  // visible = every text node whose parent is not .sr-only
+  const visible = await days.nth(1).evaluate((el) => {
+    const out = [];
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) if (!n.parentElement.closest(".sr-only")) out.push(n.textContent);
+    return out.join(" ").replace(/\s+/g, " ").trim();
+  });
+  expect(visible).toMatch(/^[A-Z][a-z]{2} \S+ 31° 25° 💧 40% ⚡ 35%$/);
+});

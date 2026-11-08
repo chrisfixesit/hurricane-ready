@@ -181,6 +181,7 @@ export async function fetchOutlook(island, { googleKey = "" } = {}) {
         windKmh: Math.round(f.hourly.wind_speed_10m[i]),
         gustKmh: Math.round(f.hourly.wind_gusts_10m[i]),
         code: f.hourly.weather_code[i],
+        description: WMO[f.hourly.weather_code[i]] ?? "—",
         uv: f.hourly.uv_index[i] != null ? round1(f.hourly.uv_index[i]) : null,
       });
     }

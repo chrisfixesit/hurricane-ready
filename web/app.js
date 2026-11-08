@@ -542,6 +542,11 @@
         `with a ${windWordKt(w.windKt)} ${w.windFrom} breeze.${rain}${todayClause}`;
     }
 
+    // The card icons are decorative, so the condition (the server's WMO
+    // description, as for "Right now") is read as hidden text instead (#103).
+    // the server uses "—" for an unmapped weather code
+    const condSr = (desc) => desc && desc !== "—" ? `<span class="sr-only">${escapeHtml(desc)}. </span>` : "";
+
     function renderForecast(o) {
       const wrap = document.getElementById("days");
       const age = document.getElementById("forecast-age");
@@ -554,8 +559,8 @@
         const dow = idx === 0 ? "Today" : islandDOW(d.date);
         const rain = d.rainProb != null ? rainChance("rain", d.rainProb) : "";
         const thunder = thunderChance(d.thunderProb);
-        return `<div class="day"><div class="dow">${dow}</div><div class="ico" aria-hidden="true">${icon(d.code)}</div>
-          <div><span class="hi">${fmtDeg(d.maxC)}</span> <span class="lo">${fmtDeg(d.minC)}</span></div>${rain}${thunder}</div>`;
+        return `<div class="day"><div class="dow">${dow}</div><div class="ico" aria-hidden="true">${icon(d.code)}</div>${condSr(d.description)}
+          <div><span class="sr-only">High </span><span class="hi">${fmtDeg(d.maxC)}</span> <span class="sr-only">low </span><span class="lo">${fmtDeg(d.minC)}</span></div>${rain}${thunder}</div>`;
       }).join("");
       const wet = o.daily.filter(d => (d.rainProb ?? 0) >= 50).length;
       const hi = Math.max(...o.daily.map(d => d.maxC));
@@ -572,11 +577,13 @@
     // Rain and thunder chances for the hourly strip and 7-day cards. The emoji
     // are hidden from screen readers and replaced with words, because a title
     // attribute alone often isn't announced.
-    const rainChance = (cls, pct) =>
-      `<div class="${cls}" title="Chance of rain"><span aria-hidden="true">💧</span> ${pct}%<span class="sr-only"> chance of rain</span></div>`;
-    const thunderChance = (pct) => (pct ?? 0) >= 30
-      ? `<div class="th" title="Chance of thunderstorms"><span aria-hidden="true">⚡</span> ${pct}%<span class="sr-only"> chance of thunderstorms</span></div>`
+    const rainChance = (cls, pct, sep = "") =>
+      `<div class="${cls}" title="Chance of rain"><span aria-hidden="true">💧</span> ${pct}%<span class="sr-only"> chance of rain${sep}</span></div>`;
+    const thunderChance = (pct, sep = "") => (pct ?? 0) >= 30
+      ? `<div class="th" title="Chance of thunderstorms"><span aria-hidden="true">⚡</span> ${pct}%<span class="sr-only"> chance of thunderstorms${sep}</span></div>`
       : "";
+
+    const hasTh = (x) => (x.thunderProb ?? 0) >= 30;
 
     function renderRainWind(o, w) {
       const wrap = document.getElementById("hours");
@@ -584,8 +591,8 @@
       if (!o || !o.hourly || !o.hourly.length) { sum.textContent = "Hourly outlook unavailable right now."; wrap.innerHTML = ""; document.getElementById("rain-attribution").hidden = true; return; }
       const h = o.hourly;
       wrap.innerHTML = h.map(x => `
-        <div class="hr"><div class="t">${hourLabel(x.time)}</div><div class="ico" aria-hidden="true">${icon(x.code)}</div>
-          ${rainChance("r", x.rainProb ?? 0)}${thunderChance(x.thunderProb)}<div class="w">${fromKmh(x.windKmh)} ${wUnit()}</div></div>`).join("");
+        <div class="hr"><div class="t">${hourLabel(x.time)}</div><div class="ico" aria-hidden="true">${icon(x.code)}</div>${condSr(x.description)}
+          ${rainChance("r", x.rainProb ?? 0, hasTh(x) ? "" : ", ")}${thunderChance(x.thunderProb, ", ")}<div class="w"><span class="sr-only">wind </span>${fromKmh(x.windKmh)} ${wUnit()}</div></div>`).join("");
       // Google's chances require attribution wherever they appear.
       document.getElementById("rain-attribution").hidden = !(o.sources && o.sources.rain === "google");
       let peak = h[0];

@@ -161,7 +161,7 @@ function stubFetch({ googleOk }) {
       sunrise: ["x"], sunset: ["y"], daylight_duration: [43000] },
     hourly: { time: times, precipitation_probability: times.map(() => 5), precipitation: times.map(() => 1),
       wind_speed_10m: times.map(() => 20), wind_gusts_10m: times.map(() => 30),
-      weather_code: times.map(() => 80), uv_index: times.map(() => 1) },
+      weather_code: times.map((_, i) => (i === 1 ? 123 : 80)), uv_index: times.map(() => 1) },
   };
   const google = { forecastHours: [hour(new Date(start).toISOString(), 60, 45)] };
   const googleDays = { forecastDays: [day("2026-11-06", 35, 70, 10, 40)] };
@@ -193,6 +193,8 @@ test("fetchOutlook: Google data overlays the first hour and is attributed", asyn
   assert.equal(o.hourly[0].thunderProb, 45);
   assert.equal(o.hourly[0].precipMm, 1, "mm stays Open-Meteo");
   assert.equal(o.hourly[1].rainProb, 5);
+  assert.equal(o.hourly[0].description, "Light showers", "hourly cards carry the WMO label (#103)");
+  assert.equal(o.hourly[1].description, "—", "unmapped code");
 });
 
 test("fetchOutlook: Google down → Open-Meteo values, open-meteo source", async () => {
