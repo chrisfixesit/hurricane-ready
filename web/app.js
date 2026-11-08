@@ -735,7 +735,7 @@
       const el = document.getElementById("shelter-list");
       if (!parish) { el.innerHTML = ""; return; }
       el.innerHTML = SHELTERS.filter((s) => s.parish === parish)
-        .map((s) => `<div class="shelter"><span class="s-name">${s.name}</span>${s.wc ? '<span class="s-wc" title="Wheelchair access" aria-label="Wheelchair access">♿</span>' : ""}</div>`)
+        .map((s) => `<div class="shelter"><span class="s-name">${escapeHtml(s.name)}</span>${s.wc ? '<span class="s-wc" aria-hidden="true">♿</span><span class="sr-only">Wheelchair access</span>' : ""}</div>`)
         .join("");
     }
 
@@ -796,10 +796,10 @@
       const active = new Set((s.storms || []).map(x => x.name));
       el.innerHTML = names.map((n, i) => {
         let cls = "upcoming", tag = "";
-        if (active.has(n)) { cls = "active"; tag = " · active now"; }
-        else if (i < used) { cls = "used"; }
-        else if (i === used) { cls = "next"; tag = " · next"; }
-        return `<span class="name-chip ${cls}" title="${n}${tag}">${n}</span>`;
+        if (active.has(n)) { cls = "active"; tag = `<span class="name-tag"><span class="sr-only"> – </span>active now</span>`; }
+        else if (i < used) { cls = "used"; tag = `<span class="sr-only"> (used)</span>`; }
+        else if (i === used) { cls = "next"; tag = `<span class="name-tag"><span class="sr-only"> – </span>next</span>`; }
+        return `<li class="name-chip ${cls}">${escapeHtml(n)}${tag}</li>`;
       }).join("");
     }
 
@@ -876,7 +876,7 @@
       const passText = (a) => {
         const p = a.pass;
         if (!p || p.kind === "distant") return "";
-        if (p.kind === "direct-hit-risk") return `<small style="color:#fca5a5">may track very close</small>`;
+        if (p.kind === "direct-hit-risk") return `<small class="pass-close">may track very close</small>`;
         return `<small style="color:var(--accent)">passes ~${p.distanceKm} km to the ${p.side}</small>`;
       };
       const rows = s.storms.map(st => `
@@ -889,8 +889,10 @@
               <br><small style="color:var(--muted)">(${st.assessment.method === "official-track" ? "NHC track" : "projected"}${st.assessment.windFieldKm ? `, winds reach ${st.assessment.windFieldKm} km` : ""})</small></td>
           <td><span class="chip ${st.assessment.level}">${st.assessment.level.replace("_", " ")}</span></td>
         </tr>`).join("");
-      document.getElementById("storms-body").innerHTML = rows ||
-        '<tr><td colspan="6"><div class="empty"><span class="sun" aria-hidden="true">☀️</span>No active systems — enjoy the sunshine.</div></td></tr>';
+      document.getElementById("storms-body").innerHTML = rows;
+      // Empty message lives outside the table so it reflows at 320px (#111)
+      document.getElementById("storms-table").hidden = !rows;
+      document.getElementById("storms-empty").hidden = !!rows;
 
       document.getElementById("history").innerHTML = (s.history ?? []).slice(-8).reverse()
         .map(h => `${new Date(h.at).toUTCString().slice(5, 22)} UTC — ${h.from.replace("_", " ")} → <b>${h.to.replace("_", " ")}</b>`)
@@ -1083,7 +1085,10 @@
       const h = (location.hash || "").replace("#", "");
       return PAGES.includes(h) ? h : null;
     }
-    function showPage(page, scroll = true) {
+    // Page names match the nav labels; home keeps the full document title (#104).
+    const PAGE_TITLES = { forecast: "7-day forecast", sea: "Beach & sea", radar: "Radar", storms: "Storms", shelters: "Shelters", prep: "Get ready" };
+    const HOME_TITLE = document.title;
+    function showPage(page, scroll = true, focus = false) {
       curPage = page;
       document.querySelectorAll(".card[data-page]").forEach((c) => {
         const on = c.dataset.page === page;
@@ -1091,8 +1096,11 @@
         if (on) setCardOpen(c, true); // pages show content in full
       });
       document.querySelectorAll(".section-nav a").forEach((a) => {
-        a.classList.toggle("active", a.getAttribute("href") === "#" + page);
+        const on = a.getAttribute("href") === "#" + page;
+        a.classList.toggle("active", on);
+        if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
       });
+      document.title = PAGE_TITLES[page] ? PAGE_TITLES[page] + " | Bim Weather" : HOME_TITLE;
       // Leaflet sizes wrong while its container is display:none — nudge on show.
       // Permanent tooltips were placed with a zero size then, so re-place them (#109).
       if (page === "radar" && map) requestAnimationFrame(() => {
@@ -1100,6 +1108,16 @@
         layerGroup.eachLayer((l) => { const t = l.getTooltip && l.getTooltip(); if (t) t.update(); });
       });
       if (scroll) window.scrollTo(0, 0);
+      // User-initiated change only: the page's heading button names the new page for screen readers (#104).
+      if (focus) {
+        const t = document.querySelector(`.card[data-page="${page}"]:not([hidden]) .card-toggle`);
+        if (t) {
+          t.focus({ preventScroll: true });
+          // On short screens with alerts above the layout the toggle can sit below the fold (2.4.11);
+          // scroll-margin on .card-toggle keeps it clear of the sticky nav.
+          t.scrollIntoView({ block: "nearest" });
+        }
+      }
     }
     function setupRouter() {
       // Skip link (#100): focus main without touching location.hash, so no dead
@@ -1113,8 +1131,9 @@
       });
       showPage(pageFromHash() ?? "home");
       window.addEventListener("hashchange", () => {
-        const page = pageFromHash();
-        if (page) showPage(page);
+        // Back to the hash-less URL is Today; other unknown hashes (#main) are ignored.
+        const page = location.hash ? pageFromHash() : "home";
+        if (page) showPage(page, true, page !== curPage);
       });
     }
 

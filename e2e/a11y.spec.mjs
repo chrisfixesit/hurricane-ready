@@ -73,8 +73,9 @@ test("offline notice has AA contrast in light theme", async ({ page, context }) 
 // (#105) UV "High" badge and WARNING chip share a colour on a warning tint.
 // They only render with live high-UV / storm data, so inject each into the
 // real container it renders in: a .wx-tile in the sea grid, and a table cell
-// in the storms table.
+// in the storms table (a mocked storm keeps the table visible, #111).
 test("UV High badge and WARNING chip have AA contrast in light theme", async ({ page }) => {
+  await mockStorms(page, [fakeStorm]);
   await load(page, "light");
   await page.evaluate(() => {
     document.getElementById("sea-grid").insertAdjacentHTML("beforeend",
@@ -164,6 +165,67 @@ test("skip made before the first status render is not undone", async ({ page }) 
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await expect(page.locator("main#main")).toBeFocused();
 });
+
+// (#108) storm-name status must be readable without colour or hover, and the
+// "may track very close" note must pass AA. Deterministic: overlay the real
+// /api/status response with a fixed season and a close-passing storm.
+async function mockSeason(page) {
+  await page.route("**/api/status", async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    body.seasonNames = ["Arthur", "Bertha", "Cristobal", "Dolly", "Edouard"];
+    body.stormsSoFar = 3; // Arthur, Bertha, Cristobal formed: Dolly is next
+    body.storms = [{
+      id: "al032026", name: "Cristobal", classification: "Hurricane", intensityKt: 80,
+      assessment: { level: "WATCH", distanceNowKm: 900, closestApproachKm: 60, closestApproachInHours: 30,
+        method: "official-track", pass: { kind: "direct-hit-risk" } },
+    }];
+    await route.fulfill({ response: res, json: body });
+  });
+}
+
+test("storm names are a list with status in text", async ({ page }) => {
+  await mockSeason(page);
+  await load(page, "light");
+  await page.evaluate(() => { location.hash = "#storms"; });
+  const items = page.locator("ul#season-names > li.name-chip");
+  await expect(items).toHaveCount(5);
+  await expect(items.nth(0)).toHaveText(/^Arthur\s*\(used\)$/);
+  await expect(items.nth(1)).toHaveText(/^Bertha\s*\(used\)$/);
+  await expect(items.nth(2)).toHaveText(/^Cristobal\s*–\s*active now$/);
+  await expect(items.nth(3)).toHaveText(/^Dolly\s*–\s*next$/);
+  await expect(items.nth(4)).toHaveText(/^Edouard$/);
+  await expect(items.nth(4).locator(".name-tag, .sr-only")).toHaveCount(0);
+  await expect(items.nth(0)).toHaveClass(/used/);
+  await expect(items.nth(1)).toHaveClass(/used/);
+  await expect(items.nth(2)).toHaveClass(/active/);
+  await expect(items.nth(3)).toHaveClass(/next/);
+  // Safari/VoiceOver drops list semantics under list-style:none unless role=list is explicit
+  const list = page.locator("#season-names");
+  await expect(list).toHaveAttribute("role", "list");
+  await expect(page.getByRole("list").filter({ has: page.getByRole("listitem").filter({ hasText: "Arthur" }) }).first()).toBeVisible();
+  await expect(list.getByRole("listitem")).toHaveCount(5);
+  expect(await page.locator("#season-names [title]").count()).toBe(0);
+});
+
+for (const theme of ["light", "dark"]) {
+  test(`used storm name and "may track very close" note have AA contrast (${theme})`, async ({ page }) => {
+    await mockSeason(page);
+    await load(page, theme);
+    await page.evaluate(() => { location.hash = "#storms"; });
+    await expect(page.locator("#season-names .name-chip.used").first()).toBeVisible();
+    expect(await ratio(page, "#season-names .name-chip.used")).toBeGreaterThanOrEqual(AA_TEXT);
+    // the helper can't see opacity, which is what used to fade the chip below AA
+    expect(await page.locator("#season-names .name-chip.used").first().evaluate((e) => getComputedStyle(e).opacity)).toBe("1");
+    // the small "active now" / "next" tags sit on tinted chips
+    await expect(page.locator("#season-names .name-chip.active .name-tag")).toBeVisible();
+    expect(await ratio(page, "#season-names .name-chip.active .name-tag")).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(await ratio(page, "#season-names .name-chip.next .name-tag")).toBeGreaterThanOrEqual(AA_TEXT);
+    const note = page.locator("#storms-body small", { hasText: "may track very close" });
+    await expect(note).toBeVisible();
+    expect(await ratio(page, "#storms-body small.pass-close")).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+}
 
 // (#107) every card title is an h2 holding the disclosure button so heading
 // navigation lists each section; sub-headings sit below it without skipping
@@ -353,6 +415,125 @@ test("forecast cards expose condition and High/low in the accessibility tree", a
   await expect(days.nth(1)).toMatchAriaSnapshot("- text: /Showers\\. High 31° low 25° 40% chance of rain 35% chance of thunderstorms/");
 });
 
+// (#111) the empty-state sentence sat inside the 520px-min table scroller and
+// was clipped at 320px. It now lives outside the table; the table hides when empty.
+const fakeStorm = {
+  id: "al01", name: "Testa", classification: "Tropical Storm", intensityKt: 45, lat: 16.5, lon: -55.2,
+  assessment: { level: "WATCH", distanceNowKm: 800, closestApproachKm: 300, closestApproachInHours: 30, method: "projected", pass: { kind: "distant" } },
+};
+
+async function mockStorms(page, storms) {
+  await page.route("**/api/status", async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    body.storms = storms;
+    if (storms.length) body.assessment = { ...(body.assessment ?? {}), storms };
+    await route.fulfill({ response: res, json: body });
+  });
+}
+
+test("storms empty state is fully visible at 320px with the table hidden", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await mockStorms(page, []);
+  await page.goto(BASE + "/#storms", { waitUntil: "load" });
+  const empty = page.locator("#storms-empty");
+  await expect(empty).toBeVisible();
+  await expect(page.locator("#storms .table-wrap")).toBeHidden();
+  await expect(empty).toContainText("No active systems — enjoy the sunshine.");
+  const r = await empty.evaluate((el) => {
+    const clipped = [];
+    for (let n = el; n && n !== document.body; n = n.parentElement) {
+      if (n.scrollWidth > n.clientWidth && getComputedStyle(n).overflowX !== "visible") clipped.push(n.id || n.className);
+    }
+    return { clipped, sw: el.scrollWidth, cw: el.clientWidth, right: el.getBoundingClientRect().right };
+  });
+  expect(r.clipped).toEqual([]);
+  expect(r.sw).toBeLessThanOrEqual(r.cw);
+  expect(r.right).toBeLessThanOrEqual(320);
+});
+
+test("storms table shows and the empty message hides when a storm is active", async ({ page }) => {
+  await mockStorms(page, [fakeStorm]);
+  await page.goto(BASE + "/#storms", { waitUntil: "load" });
+  await expect(page.locator("#storms-body tr")).toHaveCount(1);
+  await expect(page.locator("#storms .table-wrap")).toBeVisible();
+  await expect(page.locator("#storms-empty")).toBeHidden();
+});
+
+// (#111) .hist-intro had no CSS: flush against the card edge at body size
+for (const theme of ["light", "dark"]) {
+  test(`.hist-intro lines up with card text and has AA contrast (${theme})`, async ({ page }) => {
+    await load(page, theme);
+    const pads = await page.evaluate(() => ({
+      intro: [...document.querySelectorAll(".hist-intro")].map((e) => getComputedStyle(e).paddingLeft),
+      summary: getComputedStyle(document.querySelector(".summary")).paddingLeft,
+    }));
+    expect(pads.intro.length).toBe(3);
+    for (const p of pads.intro) expect(p).toBe(pads.summary);
+    const ratios = await page.evaluate(() => [...document.querySelectorAll(".hist-intro")].map((e) => window.__contrast(e)));
+    for (const r of ratios) expect(r).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+}
+
+// (#104) page changes: focus, aria-current and title
+const PAGES = [
+  ["home", "Today", /^Bim Weather \| Barbados Weather & Storm Watch$/],
+  ["forecast", "7-day", /^7-day forecast \| Bim Weather$/],
+  ["sea", "Beach & sea", /^Beach & sea \| Bim Weather$/],
+  ["radar", "Radar", /^Radar \| Bim Weather$/],
+  ["storms", "Storms", /^Storms \| Bim Weather$/],
+  ["shelters", "Shelters", /^Shelters \| Bim Weather$/],
+  ["prep", "Get ready", /^Get ready \| Bim Weather$/],
+];
+
+// the real card heading button names
+const HEADINGS = { forecast: /Next 7 days/, sea: /Beach, sea & sky/, radar: /Rain radar & satellite/, storms: /Storms & tropics/, shelters: /Emergency & shelters/, prep: /Get ready/ };
+
+async function expectPage(page, id, title) {
+  await expect(page).toHaveTitle(title);
+  const current = page.locator('.section-nav a[aria-current="page"]');
+  await expect(current).toHaveCount(1);
+  await expect(current).toHaveAttribute("href", "#" + id);
+}
+
+for (const [id, label, title] of PAGES.filter(([id]) => id !== "home")) {
+  for (const how of ["click", "Enter"]) {
+    test(`${how} on the ${label} nav link focuses the page heading and updates title/aria-current`, async ({ page }) => {
+      await page.goto(BASE + "/");
+      const link = page.locator(`.section-nav a[href="#${id}"]`);
+      if (how === "click") await link.click();
+      else { await link.focus(); await page.keyboard.press("Enter"); }
+      await expectPage(page, id, title);
+      const toggle = page.locator(`.card[data-page="${id}"]:not([hidden]) .card-toggle`).first();
+      await expect(toggle).toBeFocused();
+      await expect(toggle).toHaveAccessibleName(HEADINGS[id]);
+    });
+  }
+}
+
+test("returning to Today restores the full title and focuses its heading", async ({ page }) => {
+  await page.goto(BASE + "/#storms");
+  await page.locator('.section-nav a[href="#home"]').click();
+  await expectPage(page, "home", PAGES[0][2]);
+  await expect(page.locator('.card[data-page="home"] .card-toggle').first()).toBeFocused();
+});
+
+test("initial load of /#storms sets title and aria-current without stealing focus", async ({ page }) => {
+  await page.goto(BASE + "/#storms");
+  await expectPage(page, "storms", /^Storms \| Bim Weather$/);
+  // let the first status render (which re-asserts the page) settle
+  await page.waitForLoadState("networkidle");
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+});
+
+test("browser Back returns to the previous page and updates title and aria-current", async ({ page }) => {
+  await page.goto(BASE + "/");
+  await page.locator('.section-nav a[href="#storms"]').click();
+  await expectPage(page, "storms", /^Storms \| Bim Weather$/);
+  await page.goBack();
+  await expectPage(page, "home", PAGES[0][2]);
+});
+
 // (#106) Play/Pause buttons: the visible label must be the accessible name
 // (WCAG 2.5.3), and the name tracks the state. Radar and satellite upstreams
 // are stubbed so both buttons are deterministic.
@@ -408,7 +589,7 @@ test("radar basemap tiles follow the theme and Barbados tooltip clears the marke
 
   // First view of the map (it was hidden when drawn): the Barbados tooltip must sit clear of the marker dot, above it rather than on the tile's own label.
   const m = await marker.boundingBox();
-  const t = await page.locator(".leaflet-tooltip", { hasText: /^\s*\S+( \S+)*\s*$/ }).first().boundingBox();
+  const t = await page.locator(".leaflet-tooltip").filter({ hasText: "Barbados" }).first().boundingBox();
   const overlap = m.x < t.x + t.width && t.x < m.x + m.width && m.y < t.y + t.height && t.y < m.y + m.height;
   expect(overlap).toBe(false);
   expect(t.y + t.height).toBeLessThanOrEqual(m.y + 1);
@@ -426,4 +607,107 @@ test("radar basemap tiles follow the theme and Barbados tooltip clears the marke
   await expect.poll(async () => (await zs()).filter((z) => z !== "5").length).toBe(1);
   expect((await zs()).filter((z) => z === "5").length).toBeLessThanOrEqual(1);
 
+  // Auto follows the OS colour scheme.
+  await page.selectOption("#set-theme", "auto");
+  for (const [scheme, style] of [["dark", "dark_all"], ["light", "light_all"]]) {
+    tiles.length = 0;
+    await page.emulateMedia({ colorScheme: scheme });
+    await expect.poll(styles).toEqual([style]);
+  }
+});
+
+test("alerts, status and advisory link sit in a named region landmark (#110)", async ({ page }) => {
+  await page.goto(BASE, { waitUntil: "load" });
+  const region = page.getByRole("region", { name: "Alerts and status" });
+  await expect(region).toHaveCount(1);
+  await expect(region.getByRole("link", { name: /Barbados Met Services/ })).toBeVisible();
+  await expect(region.locator("#alerts-bar")).toHaveCount(1);
+  await expect(region.locator("#civil-alert")).toHaveCount(1);
+  await expect(region.locator("#offline-note")).toHaveCount(1);
+});
+
+test("all visible text outside the skip link is inside a landmark (#110)", async ({ page }) => {
+  await page.goto(BASE, { waitUntil: "load" });
+  for (const hash of ["#home", "#radar", "#shelters"]) {
+    await page.evaluate((h) => { location.hash = h; }, hash);
+    const stray = await page.evaluate(() => {
+      const out = [];
+      const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n; (n = w.nextNode());) {
+        const el = n.parentElement;
+        if (!n.nodeValue.trim() || !el || el.closest("script,style,noscript,.skip-link")) continue;
+        if (!el.checkVisibility()) continue;
+        if (!el.closest("header,main,footer,nav,[role=region],section[aria-label]")) out.push(n.nodeValue.trim().slice(0, 60));
+      }
+      return out;
+    });
+    expect(stray, hash).toEqual([]);
+  }
+});
+
+test("wheelchair marker uses hidden text, not aria-label on a bare span (#110)", async ({ page }) => {
+  await page.goto(BASE, { waitUntil: "load" });
+  await page.locator('.section-nav a[href="#shelters"]').click();
+  await page.selectOption("#parish-select", "Christ Church"); // static data: wc: true
+  const shelter = page.locator("#shelter-list .shelter").first();
+  await expect(shelter).toContainText("Wheelchair access"); // sr-only text is in textContent
+  await expect(shelter.locator(".s-wc")).toHaveAttribute("aria-hidden", "true");
+  await expect(page.locator("#shelter-list span[aria-label]")).toHaveCount(0);
+  await expect(shelter.getByText("Wheelchair access")).toHaveClass(/sr-only/);
+});
+
+test("radar map is a named region landmark (#110)", async ({ page }) => {
+  await page.goto(BASE, { waitUntil: "load" });
+  await page.evaluate(() => { location.hash = "#radar"; });
+  await expect(page.getByRole("region", { name: /rain radar/i })).toHaveCount(1);
+});
+
+test("settings button announces a dialog popup (#110)", async ({ page }) => {
+  await page.goto(BASE, { waitUntil: "load" });
+  await expect(page.locator("#settings-btn")).toHaveAttribute("aria-haspopup", "dialog");
+  await expect(page.locator("#settings-btn")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#settings-btn")).toHaveAttribute("aria-controls", "settings-panel");
+});
+
+// (#104) alerts push the layout down: after a nav click the focused heading
+// button must still be fully in view (and below the sticky nav on mobile).
+for (const [w, h] of [[320, 480], [1280, 500]]) {
+  test(`focused page heading stays in view with alerts showing at ${w}x${h}`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto(BASE, { waitUntil: "load" });
+    await expect(page.locator("#banner-title")).not.toHaveText("Checking the skies…", { timeout: 15000 });
+    await page.evaluate(() => {
+      for (const id of ["civil-alert", "alerts-bar"]) {
+        const el = document.getElementById(id);
+        el.hidden = false;
+        el.textContent = "Test alert. ".repeat(40);
+      }
+    });
+    for (const id of ["storms", "prep"]) {
+      await page.locator(`.section-nav a[href="#${id}"]`).click();
+      const toggle = page.locator(`.card[data-page="${id}"]:not([hidden]) .card-toggle`).first();
+      await expect(toggle).toBeFocused();
+      const r = await page.evaluate((id) => {
+        const t = document.querySelector(`.card[data-page="${id}"] .card-toggle`).getBoundingClientRect();
+        return { top: t.top, bottom: t.bottom, nav: document.querySelector(".section-nav").getBoundingClientRect().bottom,
+          vh: innerHeight, mobileNav: document.querySelector(".section-nav").getBoundingClientRect().width > innerWidth / 2 };
+      }, id);
+      expect(r.top).toBeGreaterThanOrEqual(0);
+      expect(r.bottom).toBeLessThanOrEqual(r.vh);
+      if (r.mobileNav) expect(r.top).toBeGreaterThanOrEqual(r.nav);
+    }
+  });
+}
+
+// (#111) safe default: a stale cached app.js never un-hides anything, so the
+// initial markup must show the table. Block app.js and render a row the old way.
+test("storms table is visible in the initial HTML so a stale app.js cannot hide storms", async ({ page }) => {
+  await page.route("**/app.js*", (route) => route.abort());
+  await page.goto(BASE + "/#storms", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    document.getElementById("storms-body").innerHTML = '<tr><td colspan="6"><b>Testa</b></td></tr>';
+  });
+  await expect(page.locator("#storms-table")).toBeVisible();
+  await expect(page.locator("#storms-body tr")).toBeVisible();
+  await expect(page.locator("#storms-empty")).toBeHidden();
 });
