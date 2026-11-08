@@ -7,14 +7,7 @@
  * back to the official product.
  */
 
-// Official WMO/NHC rotating name list for the 2026 Atlantic season.
-// (Same list as 2020, with Leah replacing the retired Laura.)
-// Source: https://www.nhc.noaa.gov/aboutnames.shtml — update this once a year.
-export const ATLANTIC_NAMES_2026 = [
-  "Arthur", "Bertha", "Cristobal", "Dolly", "Edouard", "Fay", "Gonzalo",
-  "Hanna", "Isaias", "Josephine", "Kyle", "Leah", "Marco", "Nana", "Omar",
-  "Paulette", "Rene", "Sally", "Teddy", "Vicky", "Wilfred",
-];
+import { namesReached } from "./storm-names.mjs";
 
 const TWO_URL = "https://www.nhc.noaa.gov/xml/TWOAT.xml";
 const TWO_HUMAN_URL = "https://www.nhc.noaa.gov/text/MIATWOAT.shtml";
@@ -114,22 +107,10 @@ export async function fetchTropicalOutlook() {
   }
 }
 
-// How far down this season's list we've got: the 1-based position of the
-// latest list name seen. Matching on names (not "al05"-style numbers) keeps
-// unnamed depressions, which take a number but no name, from skewing it.
-function namesReached(names) {
-  let reached = 0;
-  for (const n of names) {
-    const i = ATLANTIC_NAMES_2026.findIndex((x) => x.toUpperCase() === String(n).toUpperCase());
-    reached = Math.max(reached, i + 1);
-  }
-  return reached;
-}
-
 // Names reached by the storms active right now. Only covers live storms, so
 // the season-wide count comes from fetchSeasonNamesUsed below.
-export function stormsSoFar(storms) {
-  return namesReached((storms ?? []).map((s) => s.name ?? ""));
+export function stormsSoFar(storms, list) {
+  return namesReached(list, (storms ?? []).map((s) => s.name ?? ""));
 }
 
 // NHC's ATCF storm index lists every system it has tracked, one CSV row each:
@@ -139,19 +120,20 @@ export function stormsSoFar(storms) {
 const STORM_INDEX_URL = "https://ftp.nhc.noaa.gov/atcf/index/storm_list.txt";
 const STORM_INDEX_TTL_MS = 60 * 60 * 1000; // ~290 KB; storms form over days, not minutes
 
+// Names of this year's Atlantic storms, in index order.
 export function parseSeasonIndex(text, year) {
   const names = [];
   for (const line of text.split("\n")) {
     const f = line.split(",").map((x) => x.trim());
     if (f[1] === "AL" && f[8] === String(year) && (f[18] === "WARNING" || f[18] === "ARCHIVE")) names.push(f[0]);
   }
-  return namesReached(names);
+  return names;
 }
 
 let seasonCache = null; // { year, at, value }
 
-// Count of this season's names used so far, or null if NHC can't be reached
-// (callers keep their last known count). Cached for an hour.
+// Names NHC has given this season's storms so far, or null if NHC can't be
+// reached (callers keep their last known count). Cached for an hour.
 export async function fetchSeasonNamesUsed({ year = new Date().getUTCFullYear(), now = Date.now(), fresh = false } = {}) {
   if (!fresh && seasonCache?.year === year && now - seasonCache.at < STORM_INDEX_TTL_MS) return seasonCache.value;
   try {

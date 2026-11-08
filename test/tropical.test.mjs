@@ -5,9 +5,11 @@ import {
   stormsSoFar,
   parseSeasonIndex,
   fetchSeasonNamesUsed,
-  ATLANTIC_NAMES_2026,
   parseWaves,
 } from "../src/tropical.mjs";
+import { ATLANTIC_LISTS } from "../src/storm-names.mjs";
+
+const NAMES_2026 = ATLANTIC_LISTS[2026];
 
 const TWD = `TROPICAL WAVES...
 
@@ -94,11 +96,11 @@ test("parseOutlook: category thresholds (low<40<=medium<60<=high)", () => {
 });
 
 test("stormsSoFar: counts list names reached by active storms", () => {
-  assert.equal(stormsSoFar([{ name: "Arthur" }]), 1);
-  assert.equal(stormsSoFar([{ name: "Cristobal" }, { name: "Arthur" }]), 3);
-  assert.equal(stormsSoFar([]), 0);
+  assert.equal(stormsSoFar([{ name: "Arthur" }], NAMES_2026), 1);
+  assert.equal(stormsSoFar([{ name: "Cristobal" }, { name: "Arthur" }], NAMES_2026), 3);
+  assert.equal(stormsSoFar([], NAMES_2026), 0);
   // Numbered depressions and off-list (e.g. Pacific or replayed) names don't count.
-  assert.equal(stormsSoFar([{ name: "Ten" }, { name: "Beryl" }]), 0);
+  assert.equal(stormsSoFar([{ name: "Ten" }, { name: "Beryl" }], NAMES_2026), 0);
 });
 
 // Excerpt of NHC's ATCF storm index (ftp.nhc.noaa.gov/atcf/index/storm_list.txt).
@@ -113,16 +115,17 @@ const ATCF_INDEX = [
   "      HANNA, EP, E, , , , , 05, 2026, TS, O, 2026070100, 9999999999, , 010, , , 8, WARNING, 1, EP052026",
 ].join("\n");
 
-test("parseSeasonIndex: counts this year's named Atlantic storms on the list", () => {
-  // Arthur, Bertha, Cristobal; TD Ten, genesis, invest, 2025 and Pacific skipped.
-  assert.equal(parseSeasonIndex(ATCF_INDEX, 2026), 3);
-  assert.equal(parseSeasonIndex(ATCF_INDEX, 2027), 0);
-  assert.equal(parseSeasonIndex("", 2026), 0);
+test("parseSeasonIndex: this year's Atlantic storms, without invests or the Pacific", () => {
+  // Genesis areas, invests, 2025 and the Pacific skipped. TD Ten is kept here
+  // but isn't on the list, so it never counts as a name used.
+  assert.deepEqual(parseSeasonIndex(ATCF_INDEX, 2026), ["ARTHUR", "BERTHA", "TEN", "CRISTOBAL"]);
+  assert.deepEqual(parseSeasonIndex(ATCF_INDEX, 2027), []);
+  assert.deepEqual(parseSeasonIndex("", 2026), []);
 });
 
 test("parseSeasonIndex: still counts storms once NHC archives them", () => {
   const archived = ATCF_INDEX.replace(/(2026, .*), WARNING,/g, "$1, ARCHIVE,");
-  assert.equal(parseSeasonIndex(archived, 2026), 3);
+  assert.deepEqual(parseSeasonIndex(archived, 2026), ["ARTHUR", "BERTHA", "TEN", "CRISTOBAL"]);
 });
 
 test("fetchSeasonNamesUsed: null when NHC is unreachable", async (t) => {
@@ -143,15 +146,9 @@ test("fetchSeasonNamesUsed: parses and caches the index", async (t) => {
     calls.push(url);
     return new Response(ATCF_INDEX, { status: 200 });
   });
-  assert.equal(await fetchSeasonNamesUsed({ year: 2026, now: 1e12, fresh: true }), 3);
-  assert.equal(await fetchSeasonNamesUsed({ year: 2026, now: 1e12 + 60_000 }), 3);
+  assert.equal((await fetchSeasonNamesUsed({ year: 2026, now: 1e12, fresh: true })).length, 4);
+  assert.equal((await fetchSeasonNamesUsed({ year: 2026, now: 1e12 + 60_000 })).length, 4);
   assert.equal(calls.length, 1);
   assert.match(calls[0], /storm_list\.txt$/);
 });
 
-test("ATLANTIC_NAMES_2026: 21 names, Leah replaced Laura", () => {
-  assert.equal(ATLANTIC_NAMES_2026.length, 21);
-  assert.equal(ATLANTIC_NAMES_2026[0], "Arthur");
-  assert.ok(ATLANTIC_NAMES_2026.includes("Leah"));
-  assert.ok(!ATLANTIC_NAMES_2026.includes("Laura"));
-});
