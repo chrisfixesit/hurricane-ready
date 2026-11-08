@@ -328,7 +328,7 @@
       const g = document.createElement("span");
       g.setAttribute("aria-hidden", "true");
       g.textContent = glyph;
-      btn.replaceChildren(g, " " + label);
+      btn.replaceChildren(...(glyph ? [g, " " + label] : [label]));
     }
 
     function toggleRadar() {
@@ -337,7 +337,7 @@
         clearInterval(radarTimer); radarTimer = null; setToggle(btn, "▶", "Play radar"); return;
       }
       if (!radarFrames.length) return;
-      setToggle(btn, "⏸", "Pause");
+      setToggle(btn, "⏸", "Pause radar");
       radarTimer = setInterval(() => {
         showRadarFrame((radarIdx + 1) % radarFrames.length);
       }, 700);
@@ -425,10 +425,10 @@
         setSatellite();
         return;
       }
-      btn.textContent = "… loading";
+      setToggle(btn, "", "Loading loop…");
       await loadSatFrames();
       if (!satFrames.length) { setToggle(btn, "▶", "Play loop"); return; }
-      setToggle(btn, "⏸", "Pause");
+      setToggle(btn, "⏸", "Pause loop");
       satIdx = 0;
       img.onerror = null;
       satTimer = setInterval(() => {

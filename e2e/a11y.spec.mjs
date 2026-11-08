@@ -262,17 +262,23 @@ test("radar and satellite play buttons: visible label is the accessible name", a
     json: { host: "https://tilecache.rainviewer.com", radar: { past: [{ time: 1, path: "/a" }, { time: 2, path: "/b" }], nowcast: [] } },
   }));
   await page.route("https://tilecache.rainviewer.com/**", (r) => r.fulfill({ body: PNG, contentType: "image/png" }));
-  await page.route("https://cdn.star.nesdis.noaa.gov/**", (r) => r.fulfill({ body: PNG, contentType: "image/jpeg" }));
+  // loop frames are held until released so the transient "Loading loop…" state is observable
+  let release; const gate = new Promise((res) => { release = res; });
+  await page.route("https://cdn.star.nesdis.noaa.gov/**", async (r) => {
+    if (r.request().url().includes("_GOES19-ABI-")) await gate;
+    r.fulfill({ body: PNG, contentType: "image/jpeg" });
+  });
   await page.goto(BASE, { waitUntil: "load" });
   await page.evaluate(() => { location.hash = "#radar"; });
   const radar = page.locator("#radar-toggle");
   const sat = page.locator("#sat-toggle");
   await expect(sat).toBeVisible();
-  for (const [btn, play, pause] of [[radar, "Play radar", "Pause"], [sat, "Play loop", "Pause"]]) {
+  for (const [btn, play, pause] of [[radar, "Play radar", "Pause radar"], [sat, "Play loop", "Pause loop"]]) {
     await expect(btn).not.toHaveAttribute("aria-label", /.*/);
     await expect(btn).toHaveAccessibleName(play); // glyph is aria-hidden, so name starts with the visible text
     await expect(btn.locator("span[aria-hidden=true]")).toHaveCount(1);
     await btn.click();
+    if (btn === sat) { await expect(btn).toHaveAccessibleName("Loading loop…"); release(); }
     await expect(btn).toHaveAccessibleName(pause);
     await btn.click();
     await expect(btn).toHaveAccessibleName(play);
