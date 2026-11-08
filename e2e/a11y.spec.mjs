@@ -767,14 +767,36 @@ test("a throwing non-critical renderer does not hide an active storm", async ({ 
   expect(errors.some((e) => /render failed: forecast/.test(e))).toBe(true);
 });
 
-// the skip link must not take the native #main route when pressed before `load`
+// the skip link must not take the native #main route when pressed before `load`.
+// An <img> added as soon as <body> exists and held by a route keeps `load`
+// pending, while the deferred app.js still runs at DOMContentLoaded.
 test("skip link pressed before load still uses the focus handler", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
   let release;
   const gate = new Promise((r) => { release = r; });
-  await page.route("**/api/status", async (route) => { await gate; await route.continue(); });
-  await page.goto(BASE, { waitUntil: "domcontentloaded" });
-  await page.locator(".skip-link").focus();
-  await page.keyboard.press("Enter");
-  expect(await page.evaluate(() => location.hash)).toBe("");
-  release();
+  await page.route("**/__hold-load.png", async (route) => { await gate; await route.abort(); });
+  await page.addInitScript(() => {
+    new MutationObserver((_, obs) => {
+      if (!document.body) return;
+      obs.disconnect();
+      const img = document.createElement("img");
+      img.alt = "";
+      img.src = "/__hold-load.png";
+      img.hidden = true;
+      document.body.append(img);
+    }).observe(document, { childList: true, subtree: true });
+  });
+  try {
+    await page.goto(BASE, { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => window.scrollTo(0, 400));
+    expect(await page.evaluate(() => document.readyState)).not.toBe("complete");
+    await page.locator(".skip-link").focus();
+    await page.keyboard.press("Enter");
+    expect(await page.evaluate(() => document.readyState)).not.toBe("complete");
+    expect(await page.evaluate(() => location.hash)).toBe("");
+    await expect(page.locator("main#main")).toBeFocused();
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  } finally {
+    release();
+  }
 });
