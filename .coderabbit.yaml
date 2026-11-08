@@ -9,9 +9,10 @@ reviews:
     enabled: true
     # Authors can't wave findings through with @coderabbitai approve/resolve
     allow_author_approval: false
-    # Above this risk (see merge_risk_instructions) CodeRabbit withholds its
-    # approval. That is advisory, not a merge gate: whoever merges decides.
-    max_merge_risk: moderate
+    # One-person team, so CodeRabbit is the reviewer: approve up to high risk
+    # once findings are resolved. Critical PRs, and the paths in the overrides
+    # below, never get its approval and need a human.
+    max_merge_risk: high
     # Lockfiles are excluded from review below, so a dependency-only change
     # must never be auto-approved; it needs a human look.
     overrides:
