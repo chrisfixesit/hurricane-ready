@@ -126,6 +126,12 @@ test("fetchSeasonNamesUsed: null when NHC is unreachable", async (t) => {
   assert.equal(await fetchSeasonNamesUsed({ year: 2026, now: 0, fresh: true }), null);
 });
 
+test("fetchSeasonNamesUsed: null for a 200 body that isn't the index", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => new Response("<html>Service Unavailable</html>", { status: 200 }));
+  t.mock.method(console, "warn", () => {});
+  assert.equal(await fetchSeasonNamesUsed({ year: 2026, now: 0, fresh: true }), null);
+});
+
 test("fetchSeasonNamesUsed: parses and caches the index", async (t) => {
   const calls = [];
   t.mock.method(globalThis, "fetch", async (url) => {

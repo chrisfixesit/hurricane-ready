@@ -160,7 +160,12 @@ export async function fetchSeasonNamesUsed({ year = new Date().getUTCFullYear(),
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) throw new Error(`storm index ${res.status}`);
-    const value = parseSeasonIndex(await res.text(), year);
+    const text = await res.text();
+    // A 200 can still carry an error page or a truncated file. The index always
+    // holds past seasons' Atlantic rows, so none at all means a bad body, not
+    // a quiet season; failing here keeps the last known count.
+    if (!/^\s*[^,]+,\s*AL\s*,/m.test(text)) throw new Error("storm index has no Atlantic rows");
+    const value = parseSeasonIndex(text, year);
     seasonCache = { year, at: now, value };
     return value;
   } catch (err) {
