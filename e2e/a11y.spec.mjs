@@ -364,8 +364,8 @@ const PAGES = [
   ["prep", "Get ready", /^Get ready \| Bim Weather$/],
 ];
 
-// regexes loose enough for the existing card titles
-const HEADINGS = { forecast: /7 days/i, sea: /sea|beach/i, radar: /radar/i, storms: /storm|tropic/i, shelters: /shelter/i, prep: /ready|prep|kit/i };
+// the real card heading button names
+const HEADINGS = { forecast: /Next 7 days/, sea: /Beach, sea & sky/, radar: /Rain radar & satellite/, storms: /Storms & tropics/, shelters: /Emergency & shelters/, prep: /Get ready/ };
 
 async function expectPage(page, id, title) {
   await expect(page).toHaveTitle(title);
@@ -410,4 +410,38 @@ test("browser Back returns to the previous page and updates title and aria-curre
   await expectPage(page, "storms", /^Storms \| Bim Weather$/);
   await page.goBack();
   await expectPage(page, "home", PAGES[0][2]);
+
+// (#106) Play/Pause buttons: the visible label must be the accessible name
+// (WCAG 2.5.3), and the name tracks the state. Radar and satellite upstreams
+// are stubbed so both buttons are deterministic.
+test("radar and satellite play buttons: visible label is the accessible name", async ({ page }) => {
+  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  await page.route("https://api.rainviewer.com/**", (r) => r.fulfill({
+    json: { host: "https://tilecache.rainviewer.com", radar: { past: [{ time: 1, path: "/a" }, { time: 2, path: "/b" }], nowcast: [] } },
+  }));
+  await page.route("https://tilecache.rainviewer.com/**", (r) => r.fulfill({ body: PNG, contentType: "image/png" }));
+  // loop frames are held until released so the transient "Loading loop…" state is observable
+  let release; const gate = new Promise((res) => { release = res; });
+  await page.route("https://cdn.star.nesdis.noaa.gov/**", async (r) => {
+    if (r.request().url().includes("_GOES19-ABI-")) await gate;
+    r.fulfill({ body: PNG, contentType: "image/jpeg" });
+  });
+  await page.goto(BASE, { waitUntil: "load" });
+  await page.evaluate(() => { location.hash = "#radar"; });
+  const radar = page.locator("#radar-toggle");
+  const sat = page.locator("#sat-toggle");
+  await expect(sat).toBeVisible();
+  // toggleRadar is a no-op until the stubbed frames arrive; showRadarFrame replaces the "—" placeholder
+  await expect(page.locator("#radar-time")).not.toHaveText("—");
+  await expect(sat).toHaveAccessibleName("Play loop");
+  for (const [btn, play, pause] of [[radar, "Play radar", "Pause radar"], [sat, "Play loop", "Pause loop"]]) {
+    await expect(btn).not.toHaveAttribute("aria-label", /.*/);
+    await expect(btn).toHaveAccessibleName(play); // glyph is aria-hidden, so name starts with the visible text
+    await expect(btn.locator("span[aria-hidden=true]")).toHaveCount(1);
+    await btn.click();
+    if (btn === sat) { await expect(btn).toHaveAccessibleName("Loading loop…"); release(); }
+    await expect(btn).toHaveAccessibleName(pause);
+    await btn.click();
+    await expect(btn).toHaveAccessibleName(play);
+  }
 });

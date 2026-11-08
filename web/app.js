@@ -323,13 +323,21 @@
         "Radar " + new Date(f.time * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     }
 
+    // Play/Pause buttons: the visible label is the accessible name (#106); the glyph is decoration.
+    function setToggle(btn, glyph, label) {
+      const g = document.createElement("span");
+      g.setAttribute("aria-hidden", "true");
+      g.textContent = glyph;
+      btn.replaceChildren(...(glyph ? [g, " " + label] : [label]));
+    }
+
     function toggleRadar() {
       const btn = document.getElementById("radar-toggle");
       if (radarTimer) {
-        clearInterval(radarTimer); radarTimer = null; btn.textContent = "▶ Play radar"; return;
+        clearInterval(radarTimer); radarTimer = null; setToggle(btn, "▶", "Play radar"); return;
       }
       if (!radarFrames.length) return;
-      btn.textContent = "⏸ Pause";
+      setToggle(btn, "⏸", "Pause radar");
       radarTimer = setInterval(() => {
         showRadarFrame((radarIdx + 1) % radarFrames.length);
       }, 700);
@@ -413,14 +421,14 @@
       const time = document.getElementById("sat-time");
       if (satTimer) {
         clearInterval(satTimer); satTimer = null;
-        btn.textContent = "▶ Play loop"; time.textContent = "";
+        setToggle(btn, "▶", "Play loop"); time.textContent = "";
         setSatellite();
         return;
       }
-      btn.textContent = "… loading";
+      setToggle(btn, "", "Loading loop…");
       await loadSatFrames();
-      if (!satFrames.length) { btn.textContent = "▶ Play loop"; return; }
-      btn.textContent = "⏸ Pause";
+      if (!satFrames.length) { setToggle(btn, "▶", "Play loop"); return; }
+      setToggle(btn, "⏸", "Pause loop");
       satIdx = 0;
       img.onerror = null;
       satTimer = setInterval(() => {
