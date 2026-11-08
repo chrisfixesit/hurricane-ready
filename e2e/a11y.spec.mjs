@@ -252,3 +252,29 @@ test("forecast cards expose condition and High/low in the accessibility tree", a
   await expect(days.nth(1)).toBeVisible();
   await expect(days.nth(1)).toMatchAriaSnapshot("- text: /Showers\\. High 31° low 25° 40% chance of rain 35% chance of thunderstorms/");
 });
+
+// (#106) Play/Pause buttons: the visible label must be the accessible name
+// (WCAG 2.5.3), and the name tracks the state. Radar and satellite upstreams
+// are stubbed so both buttons are deterministic.
+test("radar and satellite play buttons: visible label is the accessible name", async ({ page }) => {
+  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  await page.route("https://api.rainviewer.com/**", (r) => r.fulfill({
+    json: { host: "https://tilecache.rainviewer.com", radar: { past: [{ time: 1, path: "/a" }, { time: 2, path: "/b" }], nowcast: [] } },
+  }));
+  await page.route("https://tilecache.rainviewer.com/**", (r) => r.fulfill({ body: PNG, contentType: "image/png" }));
+  await page.route("https://cdn.star.nesdis.noaa.gov/**", (r) => r.fulfill({ body: PNG, contentType: "image/jpeg" }));
+  await page.goto(BASE, { waitUntil: "load" });
+  await page.evaluate(() => { location.hash = "#radar"; });
+  const radar = page.locator("#radar-toggle");
+  const sat = page.locator("#sat-toggle");
+  await expect(sat).toBeVisible();
+  for (const [btn, play, pause] of [[radar, "Play radar", "Pause"], [sat, "Play loop", "Pause"]]) {
+    await expect(btn).not.toHaveAttribute("aria-label", /.*/);
+    await expect(btn).toHaveAccessibleName(play); // glyph is aria-hidden, so name starts with the visible text
+    await expect(btn.locator("span[aria-hidden=true]")).toHaveCount(1);
+    await btn.click();
+    await expect(btn).toHaveAccessibleName(pause);
+    await btn.click();
+    await expect(btn).toHaveAccessibleName(play);
+  }
+});
