@@ -881,8 +881,10 @@
               <br><small style="color:var(--muted)">(${st.assessment.method === "official-track" ? "NHC track" : "projected"}${st.assessment.windFieldKm ? `, winds reach ${st.assessment.windFieldKm} km` : ""})</small></td>
           <td><span class="chip ${st.assessment.level}">${st.assessment.level.replace("_", " ")}</span></td>
         </tr>`).join("");
-      document.getElementById("storms-body").innerHTML = rows ||
-        '<tr><td colspan="6"><div class="empty"><span class="sun" aria-hidden="true">☀️</span>No active systems — enjoy the sunshine.</div></td></tr>';
+      document.getElementById("storms-body").innerHTML = rows;
+      // Empty message lives outside the table so it reflows at 320px (#111)
+      document.getElementById("storms-table").hidden = !rows;
+      document.getElementById("storms-empty").hidden = !!rows;
 
       document.getElementById("history").innerHTML = (s.history ?? []).slice(-8).reverse()
         .map(h => `${new Date(h.at).toUTCString().slice(5, 22)} UTC — ${h.from.replace("_", " ")} → <b>${h.to.replace("_", " ")}</b>`)

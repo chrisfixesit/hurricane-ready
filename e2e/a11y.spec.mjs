@@ -73,8 +73,9 @@ test("offline notice has AA contrast in light theme", async ({ page, context }) 
 // (#105) UV "High" badge and WARNING chip share a colour on a warning tint.
 // They only render with live high-UV / storm data, so inject each into the
 // real container it renders in: a .wx-tile in the sea grid, and a table cell
-// in the storms table.
+// in the storms table (a mocked storm keeps the table visible, #111).
 test("UV High badge and WARNING chip have AA contrast in light theme", async ({ page }) => {
+  await mockStorms(page, [fakeStorm]);
   await load(page, "light");
   await page.evaluate(() => {
     document.getElementById("sea-grid").insertAdjacentHTML("beforeend",
@@ -414,6 +415,66 @@ test("forecast cards expose condition and High/low in the accessibility tree", a
   await expect(days.nth(1)).toMatchAriaSnapshot("- text: /Showers\\. High 31° low 25° 40% chance of rain 35% chance of thunderstorms/");
 });
 
+// (#111) the empty-state sentence sat inside the 520px-min table scroller and
+// was clipped at 320px. It now lives outside the table; the table hides when empty.
+const fakeStorm = {
+  id: "al01", name: "Testa", classification: "Tropical Storm", intensityKt: 45, lat: 16.5, lon: -55.2,
+  assessment: { level: "WATCH", distanceNowKm: 800, closestApproachKm: 300, closestApproachInHours: 30, method: "projected", pass: { kind: "distant" } },
+};
+
+async function mockStorms(page, storms) {
+  await page.route("**/api/status", async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    body.storms = storms;
+    if (storms.length) body.assessment = { ...(body.assessment ?? {}), storms };
+    await route.fulfill({ response: res, json: body });
+  });
+}
+
+test("storms empty state is fully visible at 320px with the table hidden", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await mockStorms(page, []);
+  await page.goto(BASE + "/#storms", { waitUntil: "load" });
+  const empty = page.locator("#storms-empty");
+  await expect(empty).toBeVisible();
+  await expect(page.locator("#storms .table-wrap")).toBeHidden();
+  await expect(empty).toContainText("No active systems — enjoy the sunshine.");
+  const r = await empty.evaluate((el) => {
+    const clipped = [];
+    for (let n = el; n && n !== document.body; n = n.parentElement) {
+      if (n.scrollWidth > n.clientWidth && getComputedStyle(n).overflowX !== "visible") clipped.push(n.id || n.className);
+    }
+    return { clipped, sw: el.scrollWidth, cw: el.clientWidth, right: el.getBoundingClientRect().right };
+  });
+  expect(r.clipped).toEqual([]);
+  expect(r.sw).toBeLessThanOrEqual(r.cw);
+  expect(r.right).toBeLessThanOrEqual(320);
+});
+
+test("storms table shows and the empty message hides when a storm is active", async ({ page }) => {
+  await mockStorms(page, [fakeStorm]);
+  await page.goto(BASE + "/#storms", { waitUntil: "load" });
+  await expect(page.locator("#storms-body tr")).toHaveCount(1);
+  await expect(page.locator("#storms .table-wrap")).toBeVisible();
+  await expect(page.locator("#storms-empty")).toBeHidden();
+});
+
+// (#111) .hist-intro had no CSS: flush against the card edge at body size
+for (const theme of ["light", "dark"]) {
+  test(`.hist-intro lines up with card text and has AA contrast (${theme})`, async ({ page }) => {
+    await load(page, theme);
+    const pads = await page.evaluate(() => ({
+      intro: [...document.querySelectorAll(".hist-intro")].map((e) => getComputedStyle(e).paddingLeft),
+      summary: getComputedStyle(document.querySelector(".summary")).paddingLeft,
+    }));
+    expect(pads.intro.length).toBe(3);
+    for (const p of pads.intro) expect(p).toBe(pads.summary);
+    const ratios = await page.evaluate(() => [...document.querySelectorAll(".hist-intro")].map((e) => window.__contrast(e)));
+    for (const r of ratios) expect(r).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+}
+
 // (#104) page changes: focus, aria-current and title
 const PAGES = [
   ["home", "Today", /^Bim Weather \| Barbados Weather & Storm Watch$/],
@@ -590,3 +651,16 @@ for (const [w, h] of [[320, 480], [1280, 500]]) {
     }
   });
 }
+
+// (#111) safe default: a stale cached app.js never un-hides anything, so the
+// initial markup must show the table. Block app.js and render a row the old way.
+test("storms table is visible in the initial HTML so a stale app.js cannot hide storms", async ({ page }) => {
+  await page.route("**/app.js*", (route) => route.abort());
+  await page.goto(BASE + "/#storms", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    document.getElementById("storms-body").innerHTML = '<tr><td colspan="6"><b>Testa</b></td></tr>';
+  });
+  await expect(page.locator("#storms-table")).toBeVisible();
+  await expect(page.locator("#storms-body tr")).toBeVisible();
+  await expect(page.locator("#storms-empty")).toBeHidden();
+});
