@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { deflateSync } from "node:zlib";
 
 const BASE = process.env.BASE_URL || "http://localhost:8080";
 const AA_TEXT = 4.5;
@@ -597,7 +598,7 @@ test("radar basemap tiles follow the theme and Barbados tooltip clears the marke
     const srcs = layers.flatMap((l) => [...l.querySelectorAll("img.leaflet-tile")].map((i) => i.src));
     return [...new Set(srcs.map((u) => u.match(/cartocdn\.com\/([a-z_]+)\//)?.[1]))];
   });
-  await expect.poll(styles).toEqual(["light_all"]);
+  await expect.poll(styles).toEqual(["light_nolabels"]);
 
   // First view of the map (it was hidden when drawn): the Barbados tooltip must sit clear of the marker dot, above it rather than on the tile's own label.
   const m = await marker.boundingBox();
@@ -608,9 +609,9 @@ test("radar basemap tiles follow the theme and Barbados tooltip clears the marke
 
   await page.locator("#settings-btn").click();
   await page.selectOption("#set-theme", "dark");
-  await expect.poll(styles).toEqual(["dark_all"]);
+  await expect.poll(styles).toEqual(["dark_nolabels"]);
   await page.selectOption("#set-theme", "light");
-  await expect.poll(styles).toEqual(["light_all"]);
+  await expect.poll(styles).toEqual(["light_nolabels"]);
 
   // One basemap layer plus the radar layer (zIndex 5); a swap must not stack another.
   const zs = () => page.evaluate(() => [...document.querySelectorAll(".leaflet-tile-pane > .leaflet-layer")].map((l) => l.style.zIndex || "auto"));
@@ -619,7 +620,7 @@ test("radar basemap tiles follow the theme and Barbados tooltip clears the marke
 
   // Auto follows the OS colour scheme.
   await page.selectOption("#set-theme", "auto");
-  for (const [scheme, style] of [["dark", "dark_all"], ["light", "light_all"]]) {
+  for (const [scheme, style] of [["dark", "dark_nolabels"], ["light", "light_nolabels"]]) {
     await page.emulateMedia({ colorScheme: scheme });
     await expect.poll(styles).toEqual([style]);
   }
@@ -886,5 +887,108 @@ test.describe(() => {
     await expect(page.locator("#storms-body tr")).toContainText("Cristobal");
     await expect(page.locator("#storms-empty")).toBeHidden();
     expect(errors.some((e) => /render failed: arrival/.test(e))).toBe(true);
+  });
+});
+
+// Radar island labels (#128): CARTO's own labels were low-contrast in both themes,
+// so the basemap is the *_nolabels style and we draw our own labels on top.
+test.describe("radar island labels (#128)", () => {
+  test.use({ serviceWorkers: "block" });
+  // Approximate sea colours of CARTO's light_nolabels / dark_nolabels.
+  const SEA = { light: [0xd4, 0xda, 0xdc], dark: [0x26, 0x26, 0x26] };
+  const crc = (buf) => {
+    let c, crcv = 0xffffffff;
+    for (const b of buf) { c = (crcv ^ b) & 0xff; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; crcv = (crcv >>> 8) ^ c; }
+    return (crcv ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]);
+    const c = Buffer.alloc(4); c.writeUInt32BE(crc(td));
+    return Buffer.concat([len, td, c]);
+  };
+  // 8x8 solid-colour RGB PNG.
+  const solidPng = ([r, g, b]) => {
+    const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(8, 0); ihdr.writeUInt32BE(8, 4); ihdr[8] = 8; ihdr[9] = 2;
+    const row = Buffer.concat([Buffer.from([0]), Buffer.from(Array(8).fill([r, g, b]).flat())]);
+    return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr),
+      chunk("IDAT", deflateSync(Buffer.concat(Array(8).fill(row)))), chunk("IEND", Buffer.alloc(0))]);
+  };
+  const lum = ([r, g, b]) => [r, g, b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+    .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const cr = (a, b) => { const [h, l] = [lum(a), lum(b)].sort((x, y) => y - x); return (h + 0.05) / (l + 0.05); };
+
+  async function openRadar(page, theme, carto) {
+    const requested = [];
+    await page.route(/basemaps\.cartocdn\.com/, (r) => {
+      requested.push(r.request().url());
+      if (carto === 403) return r.fulfill({ status: 403, body: "" });
+      const t = new URL(r.request().url()).pathname.startsWith("/dark") ? "dark" : "light";
+      return r.fulfill({ body: solidPng(SEA[t]), contentType: "image/png" });
+    });
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.fulfill({ body: solidPng([0xaa, 0xd3, 0xdf]), contentType: "image/png" }));
+    await page.route("https://api.rainviewer.com/**", (r) => r.abort());
+    await page.route("**/api/status", async (route) => {
+      const res = await route.fetch();
+      const body = await res.json();
+      body.island = { ...body.island, name: "Barbados", lat: 13.1, lon: -59.55 };
+      await route.fulfill({ response: res, json: body });
+    });
+    await page.addInitScript((t) => { try { localStorage.setItem("hr-settings", JSON.stringify({ theme: t })); } catch { /* ignore */ } }, theme);
+    await page.goto(BASE, { waitUntil: "load" });
+    await page.evaluate(() => { location.hash = "#radar"; });
+    await expect(page.locator(".leaflet-overlay-pane path.leaflet-interactive").first()).toBeVisible();
+    return requested;
+  }
+  const labelColor = (page, name) => page.evaluate((n) => {
+    const el = [...document.querySelectorAll(".map-label")].find((e) => e.textContent.trim().toLowerCase() === n.toLowerCase());
+    return el ? getComputedStyle(el).color.match(/\d+/g).slice(0, 3).map(Number) : null;
+  }, name);
+
+  for (const theme of ["light", "dark"]) {
+    test(`custom island labels are aria-hidden with AA contrast on the ${theme} nolabels sea`, async ({ page }) => {
+      const requested = await openRadar(page, theme, 200);
+      await expect.poll(() => requested.some((u) => u.includes(`/${theme}_nolabels/`))).toBe(true);
+      expect(requested.some((u) => /_all\//.test(u))).toBe(false);
+      const labels = page.locator(".map-label");
+      await expect(labels.filter({ hasText: /^St Lucia$/i })).toBeVisible();
+      await expect(labels.filter({ hasText: /^Grenada$/i })).toBeVisible();
+      for (const el of await labels.all()) {
+        await expect(el).toHaveAttribute("aria-hidden", "true");
+        expect(await el.evaluate((e) => getComputedStyle(e).pointerEvents)).toBe("none");
+      }
+      for (const n of ["St Lucia", "Grenada", "Trinidad"]) {
+        const c = await labelColor(page, n);
+        expect(cr(c, SEA[theme]), `${n} ${theme}`).toBeGreaterThanOrEqual(AA_TEXT);
+      }
+    });
+  }
+
+  test("switching theme restyles the labels and swaps the tile style", async ({ page }) => {
+    const requested = await openRadar(page, "light", 200);
+    await expect(page.locator(".map-label").first()).toBeVisible();
+    const before = await labelColor(page, "Grenada");
+    await page.locator("#settings-btn").click();
+    await page.selectOption("#set-theme", "dark");
+    await expect.poll(() => requested.some((u) => u.includes("/dark_nolabels/"))).toBe(true);
+    const after = await labelColor(page, "Grenada");
+    expect(after).not.toEqual(before);
+    expect(cr(after, SEA.dark)).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
+  test("OSM fallback hides the custom labels (the tiles carry their own)", async ({ page }) => {
+    await openRadar(page, "light", 403);
+    await expect(page.locator(".basemap-fallback").first()).toBeAttached({ timeout: 15000 });
+    await expect(page.locator(".map-label")).toHaveCount(0);
+  });
+
+  test("no custom Barbados label collides with the island marker", async ({ page }) => {
+    await openRadar(page, "light", 200);
+    await expect(page.locator(".map-label").first()).toBeVisible();
+    const m = await page.locator(".leaflet-overlay-pane path.leaflet-interactive").first().boundingBox();
+    for (const el of await page.locator(".map-label, .leaflet-tooltip").filter({ hasText: /barbados/i }).all()) {
+      const t = await el.boundingBox();
+      expect(m.x < t.x + t.width && t.x < m.x + m.width && m.y < t.y + t.height && t.y < m.y + m.height).toBe(false);
+    }
   });
 });

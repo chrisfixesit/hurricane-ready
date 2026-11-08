@@ -356,6 +356,10 @@
     #map { height: 360px; background: var(--card-2); }
     /* OpenStreetMap fallback tiles are light; invert them to sit with the dark theme. */
     [data-theme="dark"] .basemap-fallback { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.85); }
+    /* Own island labels over the *_nolabels tiles (#128): theme text colour plus a halo in the page background, so they read on sea and land alike. */
+    .map-label { position: absolute; transform: translate(-50%, 6px); white-space: nowrap; pointer-events: none;
+      font: 700 11px/1 system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text);
+      text-shadow: -1px -1px 0 var(--card), 1px -1px 0 var(--card), -1px 1px 0 var(--card), 1px 1px 0 var(--card), 0 0 3px var(--card); }
     @media (max-width: 720px) { #map { height: 280px; } }
 
     /* Mobile: comfortable tap targets + a little more breathing room. */
