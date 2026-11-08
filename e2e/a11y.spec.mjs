@@ -140,7 +140,7 @@ test("skip link target is not covered by the sticky nav at 320px", async ({ page
   const r = await page.evaluate(() => {
     const top = (s) => document.querySelector(s).getBoundingClientRect().top;
     return { nav: document.querySelector(".section-nav").getBoundingClientRect().bottom,
-      main: top("main"), summary: top("main .card:not([hidden]) summary") };
+      main: top("main"), summary: top("main .card:not([hidden]) .card-toggle") };
   });
   expect(r.main).toBeGreaterThanOrEqual(r.nav);
   expect(r.summary).toBeGreaterThanOrEqual(r.nav);
@@ -165,7 +165,7 @@ test("skip made before the first status render is not undone", async ({ page }) 
   await expect(page.locator("main#main")).toBeFocused();
 });
 
-// (#107) every card title is an h2 (inside its <summary>) so heading
+// (#107) every card title is an h2 holding the disclosure button so heading
 // navigation lists each section; sub-headings sit below it without skipping
 const CARD_TITLES = {
   home: ["Right now in", "Rain & wind — next 24 hours", "Things to do in Barbados"],
@@ -184,14 +184,18 @@ async function openRoute(page, route) {
 }
 
 for (const [route, titles] of Object.entries(CARD_TITLES)) {
-  test(`#${route}: card titles are h2 headings in the summary`, async ({ page }) => {
+  test(`#${route}: card titles are h2 headings with a toggle button`, async ({ page }) => {
     await openRoute(page, route);
     const found = await page.evaluate((r) =>
-      [...document.querySelectorAll(`.card[data-page="${r}"] > summary > h2`)]
+      [...document.querySelectorAll(`.card[data-page="${r}"] > h2.card-h`)]
         .filter((h) => h.offsetParent !== null)
         .map((h) => h.textContent.replace(/\s+/g, " ").trim()), route);
     expect(found).toHaveLength(titles.length);
     titles.forEach((t, i) => expect(found[i]).toContain(t));
+    // the h2 holds a button whose accessible name is the title
+    for (const t of titles) {
+      await expect(page.getByRole("heading", { level: 2 }).getByRole("button", { name: t, exact: false }).first()).toBeVisible();
+    }
   });
 
   test(`#${route}: heading levels never skip`, async ({ page }) => {
@@ -205,14 +209,33 @@ for (const [route, titles] of Object.entries(CARD_TITLES)) {
   });
 }
 
-test("card summary with an h2 inside still toggles on click and Enter", async ({ page }) => {
-  await openRoute(page, "forecast");
-  const card = page.locator('.card[data-page="forecast"]').first();
-  const open = () => card.evaluate((d) => d.open);
-  const before = await open();
-  await card.locator("summary > h2").click();
-  expect(await open()).toBe(!before);
-  await card.locator("summary").focus();
+for (const how of ["click", "Enter", "Space"]) {
+  test(`card toggle button opens and closes its body on ${how}`, async ({ page }) => {
+    await openRoute(page, "forecast");
+    const card = page.locator('.card[data-page="forecast"]').first();
+    const btn = card.locator("h2 > button.card-toggle");
+    const body = card.locator(".card-body");
+    const controls = await btn.getAttribute("aria-controls");
+    expect(await body.getAttribute("id")).toBe(controls);
+    const flip = async () => {
+      if (how === "click") await btn.click();
+      else { await btn.focus(); await page.keyboard.press(how); }
+    };
+    await expect(btn).toHaveAttribute("aria-expanded", "true");
+    await expect(body).toBeVisible();
+    await flip();
+    await expect(btn).toHaveAttribute("aria-expanded", "false");
+    await expect(body).toBeHidden();
+    await flip();
+    await expect(btn).toHaveAttribute("aria-expanded", "true");
+    await expect(body).toBeVisible();
+  });
+}
+
+test("next Tab after the skip link lands on the first card toggle button", async ({ page }) => {
+  await load(page, "light");
+  await page.locator(".skip-link").focus();
   await page.keyboard.press("Enter");
-  expect(await open()).toBe(before);
+  await page.keyboard.press("Tab");
+  expect(await page.evaluate(() => document.activeElement.matches(".card:not([hidden]) > h2 > .card-toggle"))).toBe(true);
 });
