@@ -302,7 +302,7 @@
       const islandLabels = L.layerGroup(MAP_LABELS.map(([name, lat, lon, pos]) =>
         L.marker([lat, lon], {
           interactive: false, keyboard: false,
-          icon: L.divIcon({ className: "map-label-icon", iconSize: [0, 0], html: `<span class="map-label${pos === "above" ? " above" : ""}" aria-hidden="true">${name}</span>` }),
+          icon: L.divIcon({ className: "map-label-icon", iconSize: [0, 0], html: `<span class="map-label${pos === "above" ? " above" : ""}" aria-hidden="true">${escapeHtml(name)}</span>` }),
         }))).addTo(map);
       const carto = basemap = L.tileLayer(cartoUrl(), {
         attribution: "&copy; OpenStreetMap contributors &copy; CARTO", maxZoom: 19,
