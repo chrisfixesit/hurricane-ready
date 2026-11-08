@@ -172,10 +172,10 @@ async function mockSeason(page) {
   await page.route("**/api/status", async (route) => {
     const res = await route.fetch();
     const body = await res.json();
-    body.seasonNames = ["Arthur", "Bertha", "Cristobal", "Dolly"];
-    body.stormsSoFar = 1; // Arthur used, Bertha next
+    body.seasonNames = ["Arthur", "Bertha", "Cristobal", "Dolly", "Edouard"];
+    body.stormsSoFar = 3; // Arthur, Bertha, Cristobal formed: Dolly is next
     body.storms = [{
-      name: "Cristobal", classification: "Hurricane", intensityKt: 80,
+      id: "al032026", name: "Cristobal", classification: "Hurricane", intensityKt: 80,
       assessment: { level: "WATCH", distanceNowKm: 900, closestApproachKm: 60, closestApproachInHours: 30,
         method: "official-track", pass: { kind: "direct-hit-risk" } },
     }];
@@ -188,11 +188,22 @@ test("storm names are a list with status in text", async ({ page }) => {
   await load(page, "light");
   await page.evaluate(() => { location.hash = "#storms"; });
   const items = page.locator("ul#season-names > li.name-chip");
-  await expect(items).toHaveCount(4);
-  await expect(items.nth(0)).toHaveText(/Arthur\s*\(used\)/);
-  await expect(items.nth(1)).toHaveText(/Bertha.*next/);
-  await expect(items.nth(2)).toHaveText(/Cristobal.*active now/);
-  await expect(items.nth(3)).toHaveText(/^Dolly$/);
+  await expect(items).toHaveCount(5);
+  await expect(items.nth(0)).toHaveText(/^Arthur\s*\(used\)$/);
+  await expect(items.nth(1)).toHaveText(/^Bertha\s*\(used\)$/);
+  await expect(items.nth(2)).toHaveText(/^Cristobal\s*–\s*active now$/);
+  await expect(items.nth(3)).toHaveText(/^Dolly\s*–\s*next$/);
+  await expect(items.nth(4)).toHaveText(/^Edouard$/);
+  await expect(items.nth(4).locator(".name-tag, .sr-only")).toHaveCount(0);
+  await expect(items.nth(0)).toHaveClass(/used/);
+  await expect(items.nth(1)).toHaveClass(/used/);
+  await expect(items.nth(2)).toHaveClass(/active/);
+  await expect(items.nth(3)).toHaveClass(/next/);
+  // Safari/VoiceOver drops list semantics under list-style:none unless role=list is explicit
+  const list = page.locator("#season-names");
+  await expect(list).toHaveAttribute("role", "list");
+  await expect(page.getByRole("list").filter({ has: page.getByRole("listitem").filter({ hasText: "Arthur" }) }).first()).toBeVisible();
+  await expect(list.getByRole("listitem")).toHaveCount(5);
   expect(await page.locator("#season-names [title]").count()).toBe(0);
 });
 
@@ -201,10 +212,10 @@ for (const theme of ["light", "dark"]) {
     await mockSeason(page);
     await load(page, theme);
     await page.evaluate(() => { location.hash = "#storms"; });
-    await expect(page.locator("#season-names .name-chip.used")).toBeVisible();
+    await expect(page.locator("#season-names .name-chip.used").first()).toBeVisible();
     expect(await ratio(page, "#season-names .name-chip.used")).toBeGreaterThanOrEqual(AA_TEXT);
     // the helper can't see opacity, which is what used to fade the chip below AA
-    expect(await page.locator("#season-names .name-chip.used").evaluate((e) => getComputedStyle(e).opacity)).toBe("1");
+    expect(await page.locator("#season-names .name-chip.used").first().evaluate((e) => getComputedStyle(e).opacity)).toBe("1");
     // the small "active now" / "next" tags sit on tinted chips
     await expect(page.locator("#season-names .name-chip.active .name-tag")).toBeVisible();
     expect(await ratio(page, "#season-names .name-chip.active .name-tag")).toBeGreaterThanOrEqual(AA_TEXT);
