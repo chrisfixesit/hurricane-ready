@@ -23,8 +23,11 @@ const TYPES = {
   ".webmanifest": "application/manifest+json; charset=utf-8",
 };
 
-// Service worker and manifest must update promptly; everything else caches a day.
-const VOLATILE = new Set(["sw.js", "manifest.webmanifest"]);
+// Service worker, manifest and app.js must update promptly (no-cache = keep a
+// copy but revalidate the ETag each load, usually a 304); everything else
+// caches a day. app.js changes on most deploys and Release doesn't invalidate
+// CloudFront, so a day-long max-age left visitors on the old script.
+const VOLATILE = new Set(["sw.js", "manifest.webmanifest", "app.js"]);
 
 function etagOf(buffer) {
   const hash = createHash("sha256").update(buffer).digest("base64url");

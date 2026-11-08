@@ -97,3 +97,18 @@ test("loadAssets etags differ when content differs and match when content matche
     assert.notEqual(ea, ec, "different content → different etag");
   } finally { a.cleanup(); b.cleanup(); }
 });
+
+test("loadAssets revalidates app.js on every load so a deploy reaches visitors at once", () => {
+  // With a day-long max-age, CloudFront edges and browsers kept serving the
+  // previous app.js for up to 24h after a Release (seen 2026-11-08: the CARTO
+  // key fix was live but the Miami edge still served the watermarked map).
+  // no-cache still lets them keep a copy — they just confirm the ETag (a 304).
+  const { dir, cleanup } = tmpAssets();
+  try {
+    writeFileSync(path.join(dir, "app.js"), "code");
+    writeFileSync(path.join(dir, "icon-192.png"), Buffer.from("png"));
+    const assets = loadAssets(dir);
+    assert.equal(assets.get("/app.js").cacheControl, "no-cache");
+    assert.equal(assets.get("/icon-192.png").cacheControl, "public, max-age=86400", "icons still cache a day");
+  } finally { cleanup(); }
+});
