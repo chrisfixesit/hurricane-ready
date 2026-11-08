@@ -546,7 +546,7 @@
       const wrap = document.getElementById("days");
       const age = document.getElementById("forecast-age");
       const googleDaily = !!(o && o.sources && o.sources.dailyRain === "google");
-      age.textContent = o && o.generatedAt ? "Updated " + agoText(o.generatedAt) + (googleDaily ? " · Open-Meteo, rain chance Google" : " · Open-Meteo") : "";
+      age.textContent = o && o.generatedAt ? "Updated " + agoText(o.generatedAt) + (googleDaily ? " · Open-Meteo and Google" : " · Open-Meteo") : "";
       // Google's chances require attribution wherever they appear.
       document.getElementById("forecast-attribution").hidden = !googleDaily;
       if (!o || !o.daily || !o.daily.length) { wrap.innerHTML = '<p class="summary">Forecast unavailable right now.</p>'; document.getElementById("forecast-summary").textContent = ""; return; }
