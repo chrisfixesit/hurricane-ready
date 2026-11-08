@@ -967,14 +967,6 @@
         try {
           L.circleMarker([st.lat, st.lon], { radius: 10, color: "#f87171", fillColor: "#dc2626", fillOpacity: 0.8 })
             .bindTooltip(`${escapeHtml(st.name)} (${st.intensityKt} kt)`, { permanent: true, direction: "top" }).addTo(layerGroup);
-          // Cone of uncertainty, sent to the back so the track and markers sit on top.
-          const cone = coneFor(st);
-          if (cone) {
-            // Leaflet's bindTooltip treats the string content as HTML (writes
-            // via innerHTML on the tooltip container) — escape st.name (#29).
-            L.polygon(cone, { color: "#fbbf24", weight: 1, opacity: 0.5, fillColor: "#fbbf24", fillOpacity: 0.12 })
-              .bindTooltip(`${escapeHtml(st.name)}: probable path of the centre (next 5 days)`).addTo(layerGroup).bringToBack();
-          }
           L.polyline([[st.lat, st.lon], [s.island.lat, s.island.lon]], { color: "#475569", dashArray: "6 6", weight: 1 }).addTo(layerGroup);
           if (st.radii34Km) {
             L.circle([st.lat, st.lon], { radius: st.radii34Km * 1000, color: "#f97316", weight: 1, fillColor: "#f97316", fillOpacity: 0.12 })
@@ -988,6 +980,14 @@
               L.circleMarker([p.lat, p.lon], { radius: 4, color: "#fbbf24", fillColor: "#f59e0b", fillOpacity: 0.9 })
                 .bindTooltip(`+${p.hoursFromIssuance}h${p.maxWindKt ? ` · ${p.maxWindKt} kt` : ""} (NHC forecast)`).addTo(layerGroup);
             }
+          }
+          // Cone of uncertainty, sent to the back so the track and markers sit on top.
+          const cone = coneFor(st);
+          if (cone) {
+            // Leaflet's bindTooltip treats the string content as HTML (writes
+            // via innerHTML on the tooltip container) — escape st.name (#29).
+            L.polygon(cone, { color: "#fbbf24", weight: 1, opacity: 0.5, fillColor: "#fbbf24", fillOpacity: 0.12 })
+              .bindTooltip(`${escapeHtml(st.name)}: probable path of the centre (next 5 days)`).addTo(layerGroup).bringToBack();
           }
         } catch (err) {
           console.error(`render failed: map storm ${st.name}`, err);
