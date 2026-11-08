@@ -28,6 +28,12 @@
     // wrong day-of-week labels on the 7-day strip and the wrong wall-clock
     // for "winds reach us by X" — confusing during an actual storm.
     const ISLAND_TZ = "America/Barbados";
+    // The feed's hourly/sunrise times are naive island-local strings
+    // ("2026-11-08T13:00"), which new Date() would read in the viewer's zone.
+    // Pin them to Barbados, UTC-4 all year with no DST (#118). Strings that
+    // already carry Z or an offset pass through unchanged.
+    const parseIslandTime = (iso) =>
+      new Date(/T\d{2}:\d{2}(:\d{2})?$/.test(iso) ? iso + "-04:00" : iso);
     // Open-Meteo daily.date is already a YYYY-MM-DD calendar date in the island
     // TZ, so its weekday is timezone-independent. We parse as UTC midnight and
     // format in UTC: formatting in a negative-offset zone (island is UTC-4) would
@@ -233,7 +239,7 @@
     const HOUR_FMT = new Intl.DateTimeFormat("en-GB", { timeZone: ISLAND_TZ, hour: "numeric", hour12: true });
     const hourLabel = (iso) => {
       if (!iso) return "—";
-      const d = new Date(iso);
+      const d = parseIslandTime(iso);
       if (!Number.isFinite(d.getTime())) return "—";
       // Intl gives "1 pm" / "12 am" with a space; collapse to "1pm".
       return HOUR_FMT.format(d).toLowerCase().replace(/\s/g, "");
@@ -243,7 +249,7 @@
       // browser's local TZ — a UK user opening this saw sunrise/sunset and
       // storm-arrival times shifted by their offset.
       if (!iso) return "—";
-      const d = new Date(iso);
+      const d = parseIslandTime(iso);
       if (!Number.isFinite(d.getTime())) return "—";
       // Intl returns e.g. "1:24 pm" with en-GB + hour12.
       return ISLAND_TIME_FMT.format(d).toLowerCase();
@@ -542,6 +548,11 @@
         `with a ${windWordKt(w.windKt)} ${w.windFrom} breeze.${rain}${todayClause}`;
     }
 
+    // The card icons are decorative, so the condition (the server's WMO
+    // description, as for "Right now") is read as hidden text instead (#103).
+    // the server uses "—" for an unmapped weather code
+    const condSr = (desc) => desc && desc !== "—" ? `<span class="sr-only">${escapeHtml(desc)}. </span>` : "";
+
     function renderForecast(o) {
       const wrap = document.getElementById("days");
       const age = document.getElementById("forecast-age");
@@ -554,8 +565,8 @@
         const dow = idx === 0 ? "Today" : islandDOW(d.date);
         const rain = d.rainProb != null ? rainChance("rain", d.rainProb) : "";
         const thunder = thunderChance(d.thunderProb);
-        return `<div class="day"><div class="dow">${dow}</div><div class="ico" aria-hidden="true">${icon(d.code)}</div>
-          <div><span class="hi">${fmtDeg(d.maxC)}</span> <span class="lo">${fmtDeg(d.minC)}</span></div>${rain}${thunder}</div>`;
+        return `<div class="day"><div class="dow">${dow}</div><div class="ico" aria-hidden="true">${icon(d.code)}</div>${condSr(d.description)}
+          <div><span class="sr-only">High </span><span class="hi">${fmtDeg(d.maxC)}</span> <span class="sr-only">low </span><span class="lo">${fmtDeg(d.minC)}</span></div>${rain}${thunder}</div>`;
       }).join("");
       const wet = o.daily.filter(d => (d.rainProb ?? 0) >= 50).length;
       const hi = Math.max(...o.daily.map(d => d.maxC));
@@ -572,11 +583,13 @@
     // Rain and thunder chances for the hourly strip and 7-day cards. The emoji
     // are hidden from screen readers and replaced with words, because a title
     // attribute alone often isn't announced.
-    const rainChance = (cls, pct) =>
-      `<div class="${cls}" title="Chance of rain"><span aria-hidden="true">💧</span> ${pct}%<span class="sr-only"> chance of rain</span></div>`;
-    const thunderChance = (pct) => (pct ?? 0) >= 30
-      ? `<div class="th" title="Chance of thunderstorms"><span aria-hidden="true">⚡</span> ${pct}%<span class="sr-only"> chance of thunderstorms</span></div>`
+    const rainChance = (cls, pct, sep = "") =>
+      `<div class="${cls}" title="Chance of rain"><span aria-hidden="true">💧</span> ${pct}%<span class="sr-only"> chance of rain${sep}</span></div>`;
+    const thunderChance = (pct, sep = "") => (pct ?? 0) >= 30
+      ? `<div class="th" title="Chance of thunderstorms"><span aria-hidden="true">⚡</span> ${pct}%<span class="sr-only"> chance of thunderstorms${sep}</span></div>`
       : "";
+
+    const hasTh = (x) => (x.thunderProb ?? 0) >= 30;
 
     function renderRainWind(o, w) {
       const wrap = document.getElementById("hours");
@@ -584,8 +597,8 @@
       if (!o || !o.hourly || !o.hourly.length) { sum.textContent = "Hourly outlook unavailable right now."; wrap.innerHTML = ""; document.getElementById("rain-attribution").hidden = true; return; }
       const h = o.hourly;
       wrap.innerHTML = h.map(x => `
-        <div class="hr"><div class="t">${hourLabel(x.time)}</div><div class="ico" aria-hidden="true">${icon(x.code)}</div>
-          ${rainChance("r", x.rainProb ?? 0)}${thunderChance(x.thunderProb)}<div class="w">${fromKmh(x.windKmh)} ${wUnit()}</div></div>`).join("");
+        <div class="hr"><div class="t">${hourLabel(x.time)}</div><div class="ico" aria-hidden="true">${icon(x.code)}</div>${condSr(x.description)}
+          ${rainChance("r", x.rainProb ?? 0, hasTh(x) ? "" : ", ")}${thunderChance(x.thunderProb, ", ")}<div class="w"><span class="sr-only">wind </span>${fromKmh(x.windKmh)} ${wUnit()}</div></div>`).join("");
       // Google's chances require attribution wherever they appear.
       document.getElementById("rain-attribution").hidden = !(o.sources && o.sources.rain === "google");
       let peak = h[0];
@@ -745,10 +758,10 @@
       const dayEl = document.getElementById("sky-day");
       if (!a) { g.innerHTML = `<div class="wx-tile"><div class="lbl">Sun &amp; moon</div><div class="val">—</div></div>`; if (dayEl) dayEl.textContent = ""; return; }
       if (dayEl) {
-        const d = a.sunrise ? new Date(a.sunrise) : new Date();
-        const today = new Date();
-        const sameDay = d.toDateString() === today.toDateString();
-        const ds = d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+        const d = a.sunrise ? parseIslandTime(a.sunrise) : new Date();
+        const dayFmt = (x) => x.toLocaleDateString([], { timeZone: ISLAND_TZ, weekday: "long", day: "numeric", month: "long" });
+        const ds = dayFmt(d);
+        const sameDay = ds === dayFmt(new Date());
         dayEl.innerHTML = `Sunrise, sunset and moon for <b>${sameDay ? "today" : ds}</b>${sameDay ? " (" + ds + ")" : ""}.`;
       }
       const dl = a.daylightSeconds != null
