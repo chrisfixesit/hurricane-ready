@@ -126,3 +126,41 @@ for (const [name, path] of [["storms", "/#storms"], ["home", "/"]]) {
     await expect(page.locator(":focus")).toBeVisible();
   });
 }
+
+// (#100) on mobile the sticky section nav must not cover main's top or the first
+// card summary after the skip link scrolls main into view.
+test("skip link target is not covered by the sticky nav at 320px", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(BASE, { waitUntil: "load" });
+  await expect(page.locator("#banner-title")).not.toHaveText("Checking the skies…", { timeout: 15000 });
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await page.locator(".skip-link").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("main#main")).toBeFocused();
+  const r = await page.evaluate(() => {
+    const top = (s) => document.querySelector(s).getBoundingClientRect().top;
+    return { nav: document.querySelector(".section-nav").getBoundingClientRect().bottom,
+      main: top("main"), summary: top("main .card:not([hidden]) summary") };
+  });
+  expect(r.main).toBeGreaterThanOrEqual(r.nav);
+  expect(r.summary).toBeGreaterThanOrEqual(r.nav);
+});
+
+// (#100) the post-first-render re-assert must not scroll to the top. Delay the
+// first /api/status so the skip is deterministically made before it lands.
+test("skip made before the first status render is not undone", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await page.route("**/api/status", async (route) => { await gate; await route.continue(); });
+  await page.goto(BASE, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await page.locator(".skip-link").focus();
+  await page.keyboard.press("Enter");
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  release();
+  await expect(page.locator("#banner-title")).not.toHaveText("Checking the skies…", { timeout: 15000 });
+  // content grows on render so the exact offset can move; it must not reset to the top
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await expect(page.locator("main#main")).toBeFocused();
+});

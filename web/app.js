@@ -1038,7 +1038,7 @@
       const h = (location.hash || "").replace("#", "");
       return PAGES.includes(h) ? h : null;
     }
-    function showPage(page) {
+    function showPage(page, scroll = true) {
       curPage = page;
       document.querySelectorAll(".card[data-page]").forEach((c) => {
         const on = c.dataset.page === page;
@@ -1050,7 +1050,7 @@
       });
       // Leaflet sizes wrong while its container is display:none — nudge on show.
       if (page === "radar" && map) requestAnimationFrame(() => map.invalidateSize());
-      window.scrollTo(0, 0);
+      if (scroll) window.scrollTo(0, 0);
     }
     function setupRouter() {
       // Skip link (#100): focus main without touching location.hash, so no dead
@@ -1192,7 +1192,8 @@
         try { render(payload); } catch (err) { console.error("render failed:", err); }
         // Re-assert the routed page after the first data render in case a
         // deep-link (e.g. /#radar) needs the map re-sized once shown.
-        if (first) showPage(pageFromHash() ?? curPage);
+        // No scroll reset: it would undo a skip-link jump made before this landed (#100).
+        if (first) showPage(pageFromHash() ?? curPage, false);
       } catch { /* transient */ }
     }
 
