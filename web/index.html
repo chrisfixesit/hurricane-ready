@@ -371,6 +371,13 @@
     .sat-bar button { background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 9px; padding: 0.3rem 0.7rem; font-size: 0.8rem; cursor: pointer; font-weight: 600; }
     .sat-bar button:hover { border-color: var(--accent); }
     .sat .explain { margin: 0.6rem 0 0; }
+    .windy { padding: 0 1.1rem 1.1rem; margin: 0; }
+    .windy-frame { position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--card-2); display: flex; align-items: center; justify-content: center; }
+    @media (min-width: 721px) { .windy-frame { aspect-ratio: auto; height: 420px; } }
+    .windy-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+    .windy-load { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem 1rem; min-height: 44px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+    .windy-load:hover { border-color: var(--accent); }
+    .windy .explain { margin: 0.6rem 0 0; }
 
     /* Plain-language explainers */
     .explain { margin: 0 1.1rem 0.9rem; border: 1px solid var(--border); border-radius: 10px; background: var(--card-2); }
@@ -645,6 +652,20 @@
           <details class="explain">
             <summary>What am I looking at?</summary>
             <div class="ex-body">A <b>live photo from a weather satellite</b> high above the Caribbean, zoomed in on us. White is cloud; bright white blobs are showers or storms building up. The hazy brown tint is <b>Saharan dust</b> blown across from Africa — normal in summer, and it actually helps keep hurricanes away. Barbados is the blue dot. Press <b>▶ Play loop</b> to watch the clouds move.</div>
+          </details>
+        </figure>
+
+        <figure class="windy" id="windy">
+          <div class="windy-frame" id="windy-frame">
+            <button id="windy-load" class="windy-load" type="button">Show the live wind map</button>
+          </div>
+          <div class="sat-bar">
+            <span>Loads a map from Windy.com — uses more data</span>
+            <span style="margin-left:auto">Wind map: Windy.com · ECMWF</span>
+          </div>
+          <details class="explain">
+            <summary>What am I looking at?</summary>
+            <div class="ex-body">The <b>wind forecast</b> for the region. The moving lines show which way the wind blows; the colours show how strong it is, from calm blues to stronger yellows and reds. A storm shows up as a tight swirl. Use the timeline at the bottom to see the next few days, and tap anywhere for the forecast there. Wind speeds are in knots.</div>
           </details>
         </figure>
       </details>

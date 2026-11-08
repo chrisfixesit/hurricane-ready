@@ -255,11 +255,20 @@
     };
 
     let map, layerGroup, radarLayer, radarFrames = [], radarHost = "", radarIdx = 0, radarTimer = null;
+    let mapIsland = null;
+
+    // CARTO basemaps need a key since 2026 (keyless tiles come back watermarked
+    // "API KEY REQUIRED" with a 200). It's a public browser key, locked in the
+    // CARTO dashboard to bimweather.246labs.cloud, so other sites (and
+    // localhost) get 403. It relies on the site's strict-origin-when-cross-origin
+    // Referrer-Policy sending our origin to the tile host.
+    const CARTO_KEY = "cb1_54ok_1_b6e739d860bb19708d4ffac0";
 
     function initMap(island) {
+      mapIsland = island;
       map = L.map("map", { zoomControl: false }).setView([island.lat, island.lon], 6);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: "&copy; OpenStreetMap &copy; CARTO", maxZoom: 19,
+      L.tileLayer(`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, {
+        attribution: "&copy; OpenStreetMap contributors &copy; CARTO", maxZoom: 19,
       }).addTo(map);
       layerGroup = L.layerGroup().addTo(map);
       setupRadar();
@@ -343,6 +352,31 @@
         satFrames = got;
         satLoaded = true;
       });
+    }
+
+    // Windy wind map (embed.windy.com). Click-to-load: the embed pulls several
+    // MB of scripts and tiles, which matters on mobile data during a storm.
+    // The CSP's frame-src must allow https://embed.windy.com.
+    function loadWindy() {
+      const frame = document.getElementById("windy-frame");
+      if (frame.querySelector("iframe")) return;
+      const lat = mapIsland ? mapIsland.lat : 13.19;
+      const lon = mapIsland ? mapIsland.lon : -59.54;
+      const q = new URLSearchParams({
+        // No marker=true: it didn't draw a pin in testing, and the map already
+        // labels Bridgetown. (The embed logs its own harmless "Invalid LatLng
+        // (NaN, NaN)" from its picker script either way.)
+        type: "map", location: "coordinates", lat, lon, zoom: 5,
+        overlay: "wind", product: "ecmwf", level: "surface",
+        metricWind: "kt", metricTemp: "°C", metricRain: "mm",
+        calendar: "now",
+      });
+      const iframe = document.createElement("iframe");
+      iframe.src = "https://embed.windy.com/embed.html?" + q;
+      iframe.title = "Windy.com wind forecast map centred on Barbados";
+      iframe.allowFullscreen = true;
+      iframe.referrerPolicy = "strict-origin-when-cross-origin";
+      frame.replaceChildren(iframe);
     }
 
     async function toggleSat() {
@@ -1171,6 +1205,7 @@
       initShelters();
       document.getElementById("radar-toggle").addEventListener("click", toggleRadar);
       document.getElementById("sat-toggle").addEventListener("click", toggleSat);
+      document.getElementById("windy-load").addEventListener("click", loadWindy);
       // Delegated click for the per-tile "?" buttons (#29). The inline
       // `onclick="toggleTileNote(this)"` was the last thing forcing
       // `'unsafe-inline'` to stay on script-src in the CSP — gone now.
