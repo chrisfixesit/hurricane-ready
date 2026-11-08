@@ -60,6 +60,7 @@
       document.documentElement.setAttribute("data-theme", eff);
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.setAttribute("content", eff === "light" ? "#eef3fa" : "#0b1220");
+      if (basemap) basemap.setUrl(cartoUrl());
     }
     // Data is stored in °C and km/h; current-conditions wind is in knots.
     const toTemp = (c) => c == null ? null : settings.temp === "F" ? Math.round(c * 9 / 5 + 32) : Math.round(c);
@@ -261,7 +262,7 @@
     };
 
     let map, layerGroup, radarLayer, radarFrames = [], radarHost = "", radarIdx = 0, radarTimer = null;
-    let mapIsland = null;
+    let mapIsland = null, basemap = null;
 
     // CARTO basemaps need a key since 2026 (keyless tiles come back watermarked
     // "API KEY REQUIRED" with a 200). It's a public browser key, locked in the
@@ -270,10 +271,17 @@
     // Referrer-Policy sending our origin to the tile host.
     const CARTO_KEY = "cb1_54ok_1_b6e739d860bb19708d4ffac0";
 
+    // Tiles follow the effective theme (#109): dark_all's labels are unreadable
+    // on a light page and light_all's on a dark one. applyTheme re-points the layer.
+    const cartoUrl = () => {
+      const style = document.documentElement.dataset.theme === "light" ? "light_all" : "dark_all";
+      return `https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`;
+    };
+
     function initMap(island) {
       mapIsland = island;
       map = L.map("map", { zoomControl: false }).setView([island.lat, island.lon], 6);
-      const carto = L.tileLayer(`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, {
+      const carto = basemap = L.tileLayer(cartoUrl(), {
         attribution: "&copy; OpenStreetMap contributors &copy; CARTO", maxZoom: 19,
         // Both tile hosts check the Referer (CARTO's key is locked to our
         // domain; OpenStreetMap's usage policy expects one), so send our origin
@@ -281,7 +289,7 @@
         referrerPolicy: "strict-origin-when-cross-origin",
       }).addTo(map);
       // If CARTO refuses our tiles (403 off our domain, e.g. localhost), swap
-      // once to OpenStreetMap's own tiles, darkened in CSS to match. Radar and
+      // once to OpenStreetMap's own tiles, darkened in CSS in the dark theme. Radar and
       // storms draw on top either way. A browser or extension that strips the
       // Referer entirely may be refused by both; that's no worse than before.
       // Judged per loading cycle (each pan/zoom starts one): a tile or two
@@ -292,7 +300,7 @@
       carto.on("tileerror", () => {
         if (swapped || ++errors < 3 || errors <= loads) return;
         swapped = true;
-        map.removeLayer(carto);
+        map.removeLayer(carto); basemap = null;
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
           attribution: "&copy; OpenStreetMap contributors", maxZoom: 19, className: "basemap-fallback",
           referrerPolicy: "strict-origin-when-cross-origin",
@@ -937,7 +945,7 @@
       layerGroup.clearLayers();
       // White dot with a dark ring — stands out from the blue radar returns.
       L.circleMarker([s.island.lat, s.island.lon], { radius: 6, color: "#0b1220", weight: 3, fillColor: "#ffffff", fillOpacity: 1 })
-        .bindTooltip(s.island.name, { permanent: true, direction: "bottom" }).addTo(layerGroup);
+        .bindTooltip(s.island.name, { permanent: true, direction: "top", offset: [16, -8] }).addTo(layerGroup);
       for (const st of s.storms) {
         // Cone of uncertainty first, so the track and markers sit on top.
         const cone = coneFor(st);
@@ -1086,7 +1094,11 @@
         a.classList.toggle("active", a.getAttribute("href") === "#" + page);
       });
       // Leaflet sizes wrong while its container is display:none — nudge on show.
-      if (page === "radar" && map) requestAnimationFrame(() => map.invalidateSize());
+      // Permanent tooltips were placed with a zero size then, so re-place them (#109).
+      if (page === "radar" && map) requestAnimationFrame(() => {
+        map.invalidateSize();
+        layerGroup.eachLayer((l) => { const t = l.getTooltip && l.getTooltip(); if (t) t.update(); });
+      });
       if (scroll) window.scrollTo(0, 0);
     }
     function setupRouter() {

@@ -387,3 +387,43 @@ test("radar and satellite play buttons: visible label is the accessible name", a
     await expect(btn).toHaveAccessibleName(play);
   }
 });
+
+// Radar basemap follows the theme and the Barbados tooltip clears its marker (#109).
+test("radar basemap tiles follow the theme and Barbados tooltip clears the marker (#109)", async ({ page }) => {
+  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  const tiles = [];
+  await page.route(/basemaps\.cartocdn\.com/, (r) => { tiles.push(r.request().url()); r.fulfill({ body: PNG, contentType: "image/png" }); });
+  await page.route("https://api.rainviewer.com/**", (r) => r.fulfill({
+    json: { host: "https://tilecache.rainviewer.com", radar: { past: [{ time: 1, path: "/a" }], nowcast: [] } },
+  }));
+  await page.route("https://tilecache.rainviewer.com/**", (r) => r.fulfill({ body: PNG, contentType: "image/png" }));
+  await page.addInitScript(() => { try { localStorage.setItem("hr-settings", JSON.stringify({ theme: "light" })); } catch { /* ignore */ } });
+  await page.goto(BASE, { waitUntil: "load" });
+  await page.evaluate(() => { location.hash = "#radar"; });
+  const marker = page.locator(".leaflet-overlay-pane path.leaflet-interactive").first();
+  test.skip(!(await marker.waitFor({ timeout: 10000 }).then(() => true, () => false)), "no island data to draw the map");
+
+  const styles = () => [...new Set(tiles.map((u) => u.match(/cartocdn\.com\/([a-z_]+)\//)?.[1]))];
+  await expect.poll(styles).toEqual(["light_all"]);
+
+  // First view of the map (it was hidden when drawn): the Barbados tooltip must sit clear of the marker dot, above it rather than on the tile's own label.
+  const m = await marker.boundingBox();
+  const t = await page.locator(".leaflet-tooltip", { hasText: /^\s*\S+( \S+)*\s*$/ }).first().boundingBox();
+  const overlap = m.x < t.x + t.width && t.x < m.x + m.width && m.y < t.y + t.height && t.y < m.y + m.height;
+  expect(overlap).toBe(false);
+  expect(t.y + t.height).toBeLessThanOrEqual(m.y + 1);
+
+  await page.locator("#settings-btn").click();
+  tiles.length = 0;
+  await page.selectOption("#set-theme", "dark");
+  await expect.poll(styles).toEqual(["dark_all"]);
+  tiles.length = 0;
+  await page.selectOption("#set-theme", "light");
+  await expect.poll(styles).toEqual(["light_all"]);
+
+  // One basemap layer plus the radar layer (zIndex 5); a swap must not stack another.
+  const zs = () => page.evaluate(() => [...document.querySelectorAll(".leaflet-tile-pane > .leaflet-layer")].map((l) => l.style.zIndex || "auto"));
+  await expect.poll(async () => (await zs()).filter((z) => z !== "5").length).toBe(1);
+  expect((await zs()).filter((z) => z === "5").length).toBeLessThanOrEqual(1);
+
+});
