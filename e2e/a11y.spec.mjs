@@ -73,8 +73,9 @@ test("offline notice has AA contrast in light theme", async ({ page, context }) 
 // (#105) UV "High" badge and WARNING chip share a colour on a warning tint.
 // They only render with live high-UV / storm data, so inject each into the
 // real container it renders in: a .wx-tile in the sea grid, and a table cell
-// in the storms table.
+// in the storms table (a mocked storm keeps the table visible, #111).
 test("UV High badge and WARNING chip have AA contrast in light theme", async ({ page }) => {
+  await mockStorms(page, [fakeStorm]);
   await load(page, "light");
   await page.evaluate(() => {
     document.getElementById("sea-grid").insertAdjacentHTML("beforeend",

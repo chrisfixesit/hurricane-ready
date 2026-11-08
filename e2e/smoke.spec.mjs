@@ -42,8 +42,12 @@ test("dashboard renders every section with real data", async ({ page }) => {
     test.info().annotations.push({ type: "skipped", description: "outlook upstream unavailable" });
   }
 
-  // Storms table populated (replay has Beryl, or the empty-state row otherwise)
-  expect(await page.locator("#storms-body tr").count()).toBeGreaterThan(0);
+  // Storms table populated (replay has Beryl), or the empty message is shown and the table hidden.
+  // Check the hidden attribute, not visibility: the router hides the whole Storms card on Today.
+  if (await page.locator("#storms-body tr").count() === 0) {
+    await expect(page.locator("#storms-empty")).not.toHaveAttribute("hidden");
+    await expect(page.locator("#storms-table")).toHaveAttribute("hidden");
+  }
 
   // Season name chips
   expect(await page.locator("#season-names .name-chip").count()).toBeGreaterThan(0);
