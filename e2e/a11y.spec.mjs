@@ -418,7 +418,7 @@ test("forecast cards expose condition and High/low in the accessibility tree", a
 // (#111) the empty-state sentence sat inside the 520px-min table scroller and
 // was clipped at 320px. It now lives outside the table; the table hides when empty.
 const fakeStorm = {
-  id: "al01", name: "Testa", classification: "Tropical Storm", intensityKt: 45,
+  id: "al01", name: "Testa", classification: "Tropical Storm", intensityKt: 45, lat: 16.5, lon: -55.2,
   assessment: { level: "WATCH", distanceNowKm: 800, closestApproachKm: 300, closestApproachInHours: 30, method: "projected", pass: { kind: "distant" } },
 };
 
@@ -651,3 +651,16 @@ for (const [w, h] of [[320, 480], [1280, 500]]) {
     }
   });
 }
+
+// (#111) safe default: a stale cached app.js never un-hides anything, so the
+// initial markup must show the table. Block app.js and render a row the old way.
+test("storms table is visible in the initial HTML so a stale app.js cannot hide storms", async ({ page }) => {
+  await page.route("**/app.js*", (route) => route.abort());
+  await page.goto(BASE + "/#storms", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    document.getElementById("storms-body").innerHTML = '<tr><td colspan="6"><b>Testa</b></td></tr>';
+  });
+  await expect(page.locator("#storms-table")).toBeVisible();
+  await expect(page.locator("#storms-body tr")).toBeVisible();
+  await expect(page.locator("#storms-empty")).toBeHidden();
+});

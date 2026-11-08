@@ -706,8 +706,9 @@
         <div id="briefing" class="briefing">Loading…</div>
         <p id="briefing-source" class="briefing-source"></p>
         <p class="arrival-note" id="arrival-note" role="status" aria-live="polite" hidden></p>
-        <p class="empty" id="storms-empty"><span class="sun" aria-hidden="true">☀️</span>No active systems — enjoy the sunshine.</p>
-        <div class="table-wrap" id="storms-table" hidden tabindex="0" role="group" aria-label="Active storms table — scroll sideways for more columns">
+        <!-- Safe default: table visible, empty message hidden. app.js toggles both from the rows; a stale cached app.js (#97) never un-hides, so a hidden table would hide active storms. -->
+        <p class="empty" id="storms-empty" hidden><span class="sun" aria-hidden="true">☀️</span>No active systems — enjoy the sunshine.</p>
+        <div class="table-wrap" id="storms-table" tabindex="0" role="group" aria-label="Active storms table — scroll sideways for more columns">
           <table>
             <thead>
               <tr><th scope="col">Storm</th><th scope="col">Class</th><th scope="col">Winds</th><th scope="col">Distance now</th><th scope="col">Closest approach</th><th scope="col">Level</th></tr>

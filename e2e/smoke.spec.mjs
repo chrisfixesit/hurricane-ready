@@ -47,6 +47,9 @@ test("dashboard renders every section with real data", async ({ page }) => {
   if (await page.locator("#storms-body tr").count() === 0) {
     await expect(page.locator("#storms-empty")).not.toHaveAttribute("hidden");
     await expect(page.locator("#storms-table")).toHaveAttribute("hidden");
+  } else {
+    await expect(page.locator("#storms-table")).not.toHaveAttribute("hidden");
+    await expect(page.locator("#storms-empty")).toHaveAttribute("hidden");
   }
 
   // Season name chips
