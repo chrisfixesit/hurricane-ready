@@ -805,7 +805,7 @@ test("a storm with malformed forecastPoints keeps its marker and does not hide l
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   // forecastPoints is not an array, so forecast filtering throws for the first storm
   await mockStorms(page, [
-    { ...STORM, id: "al90", name: "Badone", intensityKt: 60, forecastPoints: 5 },
+    { ...STORM, id: "al90", name: "Badone", intensityKt: 60, radii34Km: 150, forecastPoints: 5 },
     { ...STORM, id: "al91", name: "Goodtwo", intensityKt: 70, lat: 14, lon: -50 },
   ]);
   await load(page, "light");
@@ -814,6 +814,9 @@ test("a storm with malformed forecastPoints keeps its marker and does not hide l
   await expect(page.locator(".leaflet-tooltip", { hasText: "Badone (60 kt)" })).toHaveCount(1);
   expect(errors.some((e) => /render failed: map storm Badone/.test(e))).toBe(true);
   expect(errors.some((e) => /render failed: map(?! storm)/.test(e))).toBe(false);
+  // Badone's 34-kt circle (only storm with one) and both island lines are drawn before the forecast filter
+  await expect(page.locator('path[stroke="#f97316"]')).toHaveCount(1);
+  await expect(page.locator('path[stroke="#475569"]')).toHaveCount(2);
 });
 
 // the skip link must not take the native #main route when pressed before `load`.
