@@ -271,16 +271,39 @@
     // Referrer-Policy sending our origin to the tile host.
     const CARTO_KEY = "cb1_54ok_1_b6e739d860bb19708d4ffac0";
 
-    // Tiles follow the effective theme (#109): dark_all's labels are unreadable
-    // on a light page and light_all's on a dark one. applyTheme re-points the layer.
+    // Tiles follow the effective theme (#109): dark tiles under a light page (or the
+    // reverse) are unreadable. applyTheme re-points the layer. The *_nolabels styles
+    // are used because CARTO's own island labels were low-contrast in both themes;
+    // we draw our own (MAP_LABELS, #128).
     const cartoUrl = () => {
-      const style = document.documentElement.dataset.theme === "light" ? "light_all" : "dark_all";
+      const style = document.documentElement.dataset.theme === "light" ? "light_nolabels" : "dark_nolabels";
       return `https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`;
     };
+
+    // Orientation labels for the neighbouring islands (#128). [name, lat, lon] are
+    // approximate island centroids (Wikipedia/GeoNames geographic centres, rounded
+    // to 0.01 deg). Barbados is not listed: its permanent tooltip already names it.
+    // An optional 4th item "above" puts the name over the point: Trinidad sits at the
+    // bottom edge of the 280px mobile map, where a label below would be clipped.
+    const MAP_LABELS = [
+      ["Dominica", 15.42, -61.35], ["Martinique", 14.64, -61.02], ["St Lucia", 13.91, -60.98],
+      ["St Vincent", 13.25, -61.20], ["Grenada", 12.12, -61.68], ["Tobago", 11.25, -60.68],
+      ["Trinidad", 10.45, -61.30, "above"],
+    ];
 
     function initMap(island) {
       mapIsland = island;
       map = L.map("map", { zoomControl: false }).setView([island.lat, island.lon], 6);
+      // Drop the Ukrainian-flag prefix so the credit fits on one line at 320px and
+      // can't cover the Trinidad label (#128); the OSM/CARTO credit stays in full.
+      map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
+      // Own layer group so renderMap's layerGroup.clearLayers() leaves it alone.
+      // The span is decorative (the map region has its own label), so aria-hidden.
+      const islandLabels = L.layerGroup(MAP_LABELS.map(([name, lat, lon, pos]) =>
+        L.marker([lat, lon], {
+          interactive: false, keyboard: false,
+          icon: L.divIcon({ className: "map-label-icon", iconSize: [0, 0], html: `<span class="map-label${pos === "above" ? " above" : ""}" aria-hidden="true">${escapeHtml(name)}</span>` }),
+        }))).addTo(map);
       const carto = basemap = L.tileLayer(cartoUrl(), {
         attribution: "&copy; OpenStreetMap contributors &copy; CARTO", maxZoom: 19,
         // Both tile hosts check the Referer (CARTO's key is locked to our
@@ -301,6 +324,7 @@
         if (swapped || ++errors < 3 || errors <= loads) return;
         swapped = true;
         map.removeLayer(carto); basemap = null;
+        map.removeLayer(islandLabels); // OSM tiles carry their own names (#128)
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
           attribution: "&copy; OpenStreetMap contributors", maxZoom: 19, className: "basemap-fallback",
           referrerPolicy: "strict-origin-when-cross-origin",
