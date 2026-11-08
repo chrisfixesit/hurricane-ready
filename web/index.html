@@ -96,12 +96,13 @@
     /* Light-mode darker text for the otherwise-bright semantic colours. */
     :root[data-theme="light"] .ALL_CLEAR .b-title, :root[data-theme="light"] .chip.ALL_CLEAR, :root[data-theme="light"] .chance.low { color: #15803d; }
     :root[data-theme="light"] .WATCH .b-title, :root[data-theme="light"] .chip.WATCH, :root[data-theme="light"] .uv.moderate, :root[data-theme="light"] .chance.medium { color: #a16207; }
-    :root[data-theme="light"] .WARNING .b-title, :root[data-theme="light"] .chip.WARNING, :root[data-theme="light"] .uv.high { color: #c2410c; }
+    :root[data-theme="light"] .WARNING .b-title, :root[data-theme="light"] .chip.WARNING, :root[data-theme="light"] .uv.high { color: #9a3412; } /* (#105) darker for 4.5:1 on the warning tint */
     :root[data-theme="light"] .IMMINENT .b-title, :root[data-theme="light"] .chip.IMMINENT, :root[data-theme="light"] .chance.high, :root[data-theme="light"] .name-chip.active, :root[data-theme="light"] .emerg-num b { color: #b91c1c; }
     :root[data-theme="light"] .civil-alert .ca-text, :root[data-theme="light"] .civil-alert .ca-arrow { color: #b91c1c; }
     :root[data-theme="light"] .civil-alert .ca-text b { color: #7f1d1d; }
     :root[data-theme="light"] .uv.low, :root[data-theme="light"] .chance.low { color: #14532d; }
     :root[data-theme="light"] .disclaimer { color: #854d0e; }
+    :root[data-theme="light"] .offline-note { color: #854d0e; } /* (#102) was dark-theme yellow on near-white */
     :root[data-theme="light"] .name-chip.next { color: #0369a1; }
 
     .settings-wrap { position: relative; }
@@ -167,6 +168,7 @@
       border-radius: 999px; padding: 0.28rem 0.7rem; white-space: nowrap; background: rgba(255,255,255,0.02);
     }
     .pill b { color: var(--text); font-weight: 600; }
+    header .pill b { color: var(--on-navy); } /* (#101) the Live: label was navy-on-navy */
 
     /* Status banner */
     .banner {
