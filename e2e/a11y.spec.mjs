@@ -91,3 +91,76 @@ test("UV High badge and WARNING chip have AA contrast in light theme", async ({ 
   await expect(page.locator("#t-chip")).toBeVisible();
   expect(await ratio(page, "#t-chip")).toBeGreaterThanOrEqual(AA_TEXT);
 });
+
+// (#100) the skip link used to be routed as an unknown hash and bounced users
+// to the Today page. It must keep the current page and move focus to <main>.
+for (const [name, path] of [["storms", "/#storms"], ["home", "/"]]) {
+  test(`skip link keeps the ${name} page and focuses main`, async ({ page }) => {
+    await page.goto(BASE + path, { waitUntil: "load" });
+    await expect(page.locator("#banner-title")).not.toHaveText("Checking the skies…", { timeout: 15000 });
+    const visibleCards = () => page.evaluate(() =>
+      [...document.querySelectorAll(".card[data-page]")].filter((c) => !c.hidden).map((c) => c.id));
+    const before = await visibleCards();
+    expect(before.length).toBeGreaterThan(0);
+    if (name === "storms") expect(await page.locator('.card[data-page="storms"]').first().isVisible()).toBe(true);
+
+    // focus directly: after a /#storms deep link Chrome starts Tab from the fragment target
+    await page.locator(".skip-link").focus();
+    const hashBefore = await page.evaluate(() => location.hash);
+    const histBefore = await page.evaluate(() => history.length);
+    await page.keyboard.press("Enter");
+    // no hash change, no history entry
+    expect(await page.evaluate(() => location.hash)).toBe(hashBefore);
+    expect(await page.evaluate(() => history.length)).toBe(histBefore);
+
+    expect(await visibleCards()).toEqual(before);
+    if (name === "storms") expect(await page.locator('.card[data-page="storms"]').first().isVisible()).toBe(true);
+    else expect(await page.locator("#now").isVisible()).toBe(true);
+    await expect(page.locator("main#main")).toBeFocused();
+    // focus must be visible for keyboard users
+    expect(await page.evaluate(() => getComputedStyle(document.getElementById("main")).outlineStyle)).not.toBe("none");
+
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => !!document.activeElement.closest("main"))).toBe(true);
+    expect(await page.evaluate(() => document.activeElement.id)).not.toBe("main");
+    await expect(page.locator(":focus")).toBeVisible();
+  });
+}
+
+// (#100) on mobile the sticky section nav must not cover main's top or the first
+// card summary after the skip link scrolls main into view.
+test("skip link target is not covered by the sticky nav at 320px", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(BASE, { waitUntil: "load" });
+  await expect(page.locator("#banner-title")).not.toHaveText("Checking the skies…", { timeout: 15000 });
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await page.locator(".skip-link").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("main#main")).toBeFocused();
+  const r = await page.evaluate(() => {
+    const top = (s) => document.querySelector(s).getBoundingClientRect().top;
+    return { nav: document.querySelector(".section-nav").getBoundingClientRect().bottom,
+      main: top("main"), summary: top("main .card:not([hidden]) summary") };
+  });
+  expect(r.main).toBeGreaterThanOrEqual(r.nav);
+  expect(r.summary).toBeGreaterThanOrEqual(r.nav);
+});
+
+// (#100) the post-first-render re-assert must not scroll to the top. Delay the
+// first /api/status so the skip is deterministically made before it lands.
+test("skip made before the first status render is not undone", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await page.route("**/api/status", async (route) => { await gate; await route.continue(); });
+  await page.goto(BASE, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await page.locator(".skip-link").focus();
+  await page.keyboard.press("Enter");
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  release();
+  await expect(page.locator("#banner-title")).not.toHaveText("Checking the skies…", { timeout: 15000 });
+  // content grows on render so the exact offset can move; it must not reset to the top
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await expect(page.locator("main#main")).toBeFocused();
+});

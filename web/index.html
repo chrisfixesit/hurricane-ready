@@ -127,6 +127,10 @@
     [hidden] { display: none !important; }
     .skip-link { position: absolute; left: -9999px; top: 0; z-index: 1000; background: var(--accent); color: #04263a; padding: 0.6rem 1rem; border-radius: 0 0 10px 0; font-weight: 700; font-size: 0.9rem; }
     .skip-link:focus { left: 0; }
+    /* skip-link target (#100): programmatic focus only, so no ring on mouse/script focus */
+    main { scroll-margin-top: 70px; } /* clear the sticky mobile nav */
+    main:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+    main:focus:not(:focus-visible) { outline: none; }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
     }
@@ -481,7 +485,7 @@
 </head>
 <body>
   <div class="wrap">
-    <a class="skip-link" href="#now">Skip to weather</a>
+    <a class="skip-link" href="#main">Skip to content</a>
     <header>
       <div class="logo" aria-hidden="true">
         <svg viewBox="0 0 100 100" focusable="false" width="100%" height="100%">
@@ -568,7 +572,7 @@
       <a href="#prep"><span class="nav-ico" aria-hidden="true" data-icon="backpack"></span><span>Get ready</span></a>
     </nav>
 
-    <main>
+    <main id="main" tabindex="-1">
       <details class="card" id="now" data-page="home" open>
         <summary><span class="sum-t"><span class="ico" data-icon="sun"></span> Right now in <span id="now-island">Barbados</span></span><span class="chev" aria-hidden="true">▾</span></summary>
         <p class="summary" id="now-summary">Loading current conditions…</p>

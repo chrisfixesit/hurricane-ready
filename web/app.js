@@ -1031,11 +1031,15 @@
     // see one thing at a time. Cards carry data-page; we show the active page's
     // cards and hide the rest. Hash-routed so pages are linkable + Back works.
     const PAGES = ["home", "forecast", "sea", "radar", "storms", "shelters", "prep"];
+    // Returns null for hashes that aren't a page (e.g. the skip link's #main),
+    // so those never reroute the user (#100).
+    let curPage = "home";
     function pageFromHash() {
       const h = (location.hash || "").replace("#", "");
-      return PAGES.includes(h) ? h : "home";
+      return PAGES.includes(h) ? h : null;
     }
-    function showPage(page) {
+    function showPage(page, scroll = true) {
+      curPage = page;
       document.querySelectorAll(".card[data-page]").forEach((c) => {
         const on = c.dataset.page === page;
         c.hidden = !on;
@@ -1046,11 +1050,23 @@
       });
       // Leaflet sizes wrong while its container is display:none — nudge on show.
       if (page === "radar" && map) requestAnimationFrame(() => map.invalidateSize());
-      window.scrollTo(0, 0);
+      if (scroll) window.scrollTo(0, 0);
     }
     function setupRouter() {
-      showPage(pageFromHash());
-      window.addEventListener("hashchange", () => showPage(pageFromHash()));
+      // Skip link (#100): focus main without touching location.hash, so no dead
+      // history entry and a reload keeps the current page. href="#main" stays as the no-JS fallback.
+      const skip = document.querySelector(".skip-link");
+      if (skip) skip.addEventListener("click", (e) => {
+        e.preventDefault();
+        const main = document.getElementById("main");
+        main.focus({ preventScroll: true });
+        main.scrollIntoView();
+      });
+      showPage(pageFromHash() ?? "home");
+      window.addEventListener("hashchange", () => {
+        const page = pageFromHash();
+        if (page) showPage(page);
+      });
     }
 
     function setOffline(off) { document.getElementById("offline-note").hidden = !off; }
@@ -1176,7 +1192,8 @@
         try { render(payload); } catch (err) { console.error("render failed:", err); }
         // Re-assert the routed page after the first data render in case a
         // deep-link (e.g. /#radar) needs the map re-sized once shown.
-        if (first) showPage(pageFromHash());
+        // No scroll reset: it would undo a skip-link jump made before this landed (#100).
+        if (first) showPage(pageFromHash() ?? curPage, false);
       } catch { /* transient */ }
     }
 
