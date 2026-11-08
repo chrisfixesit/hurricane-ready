@@ -791,11 +791,19 @@ test("skip link pressed before load still uses the focus handler", async ({ page
     await page.evaluate(() => window.scrollTo(0, 400));
     expect(await page.evaluate(() => document.readyState)).not.toBe("complete");
     await page.locator(".skip-link").focus();
+    const before = await page.evaluate(() => window.scrollY);
     await page.keyboard.press("Enter");
     expect(await page.evaluate(() => document.readyState)).not.toBe("complete");
     expect(await page.evaluate(() => location.hash)).toBe("");
     await expect(page.locator("main#main")).toBeFocused();
-    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    // scrollIntoView moved the page to main's top (less its scroll-margin), not just "somewhere"
+    const target = await page.evaluate(() => {
+      const m = document.getElementById("main");
+      return Math.max(0, m.getBoundingClientRect().top + window.scrollY - (parseFloat(getComputedStyle(m).scrollMarginTop) || 0));
+    });
+    expect(Math.abs(target - before)).toBeGreaterThan(5);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).not.toBe(before);
+    await expect.poll(() => page.evaluate((tg) => Math.abs(window.scrollY - tg), target)).toBeLessThanOrEqual(2);
   } finally {
     release();
   }
