@@ -76,7 +76,13 @@ self.addEventListener("fetch", (e) => {
   // clients (the server sends app.js no-cache, usually a cheap 304); fall back
   // to the cached copy offline. app.js has to move with the page that loads it.
   if (url.pathname === "/app.js") {
-    e.respondWith(fetch(req).then((r) => cacheCopy(req, r)).catch(() => caches.match(req)));
+    // A 5xx from the origin or edge resolves rather than rejects, so fall back
+    // to the cached script on any non-OK response too, not only when offline.
+    e.respondWith(
+      fetch(req)
+        .then((r) => (r.ok ? cacheCopy(req, r) : caches.match(req).then((c) => c || r)))
+        .catch(() => caches.match(req))
+    );
     return;
   }
   if (req.mode === "navigate") {
