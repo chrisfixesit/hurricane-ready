@@ -571,7 +571,7 @@
       if (!o || !o.daily || !o.daily.length) { wrap.innerHTML = '<p class="summary">Forecast unavailable right now.</p>'; document.getElementById("forecast-summary").textContent = ""; return; }
       wrap.innerHTML = o.daily.map((d, idx) => {
         const dow = idx === 0 ? "Today" : islandDOW(d.date);
-        const rain = d.rainProb != null ? rainChance("rain", d.rainProb) : "";
+        const rain = d.rainProb != null ? rainChance("rain", d.rainProb, (d.thunderProb ?? 0) >= 30 ? ", " : "") : "";
         const thunder = thunderChance(d.thunderProb);
         return `<div class="day"><div class="dow">${dow}</div><div class="ico" aria-hidden="true">${icon(d.code)}</div>${condSr(d.description)}
           <div><span class="sr-only">High </span><span class="hi">${fmtDeg(d.maxC)}</span> <span class="sr-only">low </span><span class="lo">${fmtDeg(d.minC)}</span></div>${rain}${thunder}</div>`;
@@ -883,8 +883,10 @@
         </tr>`).join("");
       document.getElementById("storms-body").innerHTML = rows;
       // Empty message lives outside the table so it reflows at 320px (#111)
-      document.getElementById("storms-table").hidden = !rows;
-      document.getElementById("storms-empty").hidden = !!rows;
+      // Null-guarded: a stale cached index.html (pre-#124) lacks these ids.
+      const stTable = document.getElementById("storms-table"), stEmpty = document.getElementById("storms-empty");
+      if (stTable) stTable.hidden = !rows;
+      if (stEmpty) stEmpty.hidden = !!rows;
 
       document.getElementById("history").innerHTML = (s.history ?? []).slice(-8).reverse()
         .map(h => `${new Date(h.at).toUTCString().slice(5, 22)} UTC — ${h.from.replace("_", " ")} → <b>${h.to.replace("_", " ")}</b>`)
@@ -1017,10 +1019,11 @@
       document.getElementById("banner-storms").innerHTML = s.storms.length
         ? `tracking<b>${s.storms.map(x => escapeHtml(x.name)).join(", ")}</b>` : "";
 
-      // Safety: the Storms card is collapsed by default, but if a threat is
-      // present or escalates we auto-open it so people never have to hunt for
-      // it. Tracks the last level so a user who re-closes it is respected
-      // unless the situation worsens.
+      // Safety: the Storms card starts collapsed only where its markup says
+      // data-start="closed"; either way, if a threat is present or escalates
+      // we auto-open it so people never have to hunt for it. Tracks the last
+      // level so a user who re-closes it is respected unless the situation
+      // worsens.
       const RANK = { ALL_CLEAR: 0, WATCH: 1, WARNING: 2, IMMINENT: 3 };
       const curRank = RANK[s.level] ?? 0;
       const civilActive = !!(s.civilAlert && s.civilAlert.active);
@@ -1036,16 +1039,19 @@
         s.briefingSource === "template" ? "Standard guidance · level decided by deterministic engine" : "";
       document.getElementById("replay-label").textContent = s.replayLabel ?? "";
 
-      renderNow(s);
-      renderThingsToDo(s);
-      renderForecast(s.outlook);
-      renderRainWind(s.outlook, s.weather);
-      renderSea(s.outlook);
-      renderSunMoon(s.outlook);
-      renderAir(s.outlook);
-      renderTropical(s);
-      renderStorms(s);
-      renderMap(s);
+      // Storm-critical renderers run first and every renderer is isolated:
+      // schema drift in one section must never hide an active storm (#126).
+      const safely = (name, fn) => { try { fn(); } catch (err) { console.error("render failed: " + name, err); } };
+      safely("storms", () => renderStorms(s));
+      safely("map", () => renderMap(s));
+      safely("now", () => renderNow(s));
+      safely("thingsToDo", () => renderThingsToDo(s));
+      safely("forecast", () => renderForecast(s.outlook));
+      safely("rainWind", () => renderRainWind(s.outlook, s.weather));
+      safely("sea", () => renderSea(s.outlook));
+      safely("sunMoon", () => renderSunMoon(s.outlook));
+      safely("air", () => renderAir(s.outlook));
+      safely("tropical", () => renderTropical(s));
     }
 
     // Highlight the section nav link for whichever section is in view.
@@ -1068,6 +1074,16 @@
     document.addEventListener("click", (e) => {
       const btn = e.target.closest(".card-toggle");
       if (btn) setCardOpen(btn.closest(".card"), btn.getAttribute("aria-expanded") !== "true");
+    });
+    // Skip link (#100): focus main without touching location.hash, so no dead
+    // history entry and a reload keeps the current page. href="#main" stays as the no-JS fallback.
+    // Delegated at top level so a skip pressed before `load` isn't the native #main route.
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".skip-link")) return;
+      e.preventDefault();
+      const main = document.getElementById("main");
+      main.focus({ preventScroll: true });
+      main.scrollIntoView();
     });
     document.querySelectorAll('.card[data-start="closed"]').forEach((c) => setCardOpen(c, false));
     let curPage = "home";
@@ -1110,13 +1126,6 @@
     function setupRouter() {
       // Skip link (#100): focus main without touching location.hash, so no dead
       // history entry and a reload keeps the current page. href="#main" stays as the no-JS fallback.
-      const skip = document.querySelector(".skip-link");
-      if (skip) skip.addEventListener("click", (e) => {
-        e.preventDefault();
-        const main = document.getElementById("main");
-        main.focus({ preventScroll: true });
-        main.scrollIntoView();
-      });
       showPage(pageFromHash() ?? "home");
       window.addEventListener("hashchange", () => {
         // Back to the hash-less URL is Today; other unknown hashes (#main) are ignored.
