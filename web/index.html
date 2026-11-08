@@ -331,6 +331,8 @@
     .hr .th { font-size: 0.7rem; color: var(--muted); }
     /* Google Maps Platform attribution: sans-serif 400, 12px+, white or
        #5E5E5E only, never translated or wrapped (their policy, not ours). */
+    /* Read by screen readers, invisible on screen. */
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
     .attribution { font: 400 12px Roboto, system-ui, sans-serif; color: #fff; white-space: nowrap; padding: 0.4rem 1.1rem 0.8rem; margin: 0; }
     :root[data-theme="light"] .attribution { color: #5E5E5E; }
 
