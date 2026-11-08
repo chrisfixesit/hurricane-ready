@@ -133,9 +133,9 @@ export function stormsSoFar(storms) {
 }
 
 // NHC's ATCF storm index lists every system it has tracked, one CSV row each:
-// name, basin, ..., number, year, ..., type (WARNING for real storms, plus
-// GENESIS/METWATCH rows for invests). It keeps finished storms, so it gives
-// the whole season's names, not just what's active.
+// name, basin, ..., number, year, ..., type (WARNING for storms this season,
+// ARCHIVE once NHC files them away, GENESIS/METWATCH for invests). It keeps
+// finished storms, so it gives the whole season's names, not just what's active.
 const STORM_INDEX_URL = "https://ftp.nhc.noaa.gov/atcf/index/storm_list.txt";
 const STORM_INDEX_TTL_MS = 60 * 60 * 1000; // ~290 KB; storms form over days, not minutes
 
@@ -143,7 +143,7 @@ export function parseSeasonIndex(text, year) {
   const names = [];
   for (const line of text.split("\n")) {
     const f = line.split(",").map((x) => x.trim());
-    if (f[1] === "AL" && f[8] === String(year) && f[18] === "WARNING") names.push(f[0]);
+    if (f[1] === "AL" && f[8] === String(year) && (f[18] === "WARNING" || f[18] === "ARCHIVE")) names.push(f[0]);
   }
   return namesReached(names);
 }

@@ -120,6 +120,11 @@ test("parseSeasonIndex: counts this year's named Atlantic storms on the list", (
   assert.equal(parseSeasonIndex("", 2026), 0);
 });
 
+test("parseSeasonIndex: still counts storms once NHC archives them", () => {
+  const archived = ATCF_INDEX.replace(/(2026, .*), WARNING,/g, "$1, ARCHIVE,");
+  assert.equal(parseSeasonIndex(archived, 2026), 3);
+});
+
 test("fetchSeasonNamesUsed: null when NHC is unreachable", async (t) => {
   t.mock.method(globalThis, "fetch", async () => { throw new Error("offline"); });
   t.mock.method(console, "warn", () => {});
