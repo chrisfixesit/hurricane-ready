@@ -229,3 +229,14 @@ test("day card visible text is unchanged by the hidden labels", async ({ page })
   });
   expect(visible).toMatch(/^[A-Z][a-z]{2} \S+ 31° 25° 💧 40% ⚡ 35%$/);
 });
+
+// (#103) the same cards through the accessibility tree rather than the DOM:
+// textContent would still pass if the labels were hidden from assistive tech.
+test("forecast cards expose condition and High/low in the accessibility tree", async ({ page }) => {
+  const days = await loadForecast(page);
+  // hourly strip is on Today; check it before moving to the forecast page
+  await expect(page.locator("#hours .hr").first()).toMatchAriaSnapshot("- text: /10am Showers\\. .*40% chance of rain, wind 16 km\\/h/");
+  await page.evaluate(() => { location.hash = "#forecast"; });
+  await expect(days.nth(1)).toBeVisible();
+  await expect(days.nth(1)).toMatchAriaSnapshot("- text: /Showers\\. High 31° low 25° 40% chance of rain 35% chance of thunderstorms/");
+});

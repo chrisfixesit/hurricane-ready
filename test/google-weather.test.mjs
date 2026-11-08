@@ -195,6 +195,7 @@ test("fetchOutlook: Google data overlays the first hour and is attributed", asyn
   assert.equal(o.hourly[1].rainProb, 5);
   assert.equal(o.hourly[0].description, "Light showers", "hourly cards carry the WMO label (#103)");
   assert.equal(o.hourly[1].description, "—", "unmapped code");
+  assert.equal(o.daily[0].description, "Light showers");
 });
 
 test("fetchOutlook: Google down → Open-Meteo values, open-meteo source", async () => {
