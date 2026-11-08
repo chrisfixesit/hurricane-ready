@@ -768,6 +768,58 @@ test("a throwing non-critical renderer does not hide an active storm", async ({ 
   expect(errors.some((e) => /render failed: forecast/.test(e))).toBe(true);
 });
 
+// (#129) one malformed storm must not drop the later storms from the radar map.
+test("a storm whose cone fails keeps its marker, line, circle and track and does not hide later storms (#129)", async ({ page }) => {
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  // coneFor is pure arithmetic over the same points the track uses, so no JSON payload
+  // makes the cone throw while the track survives. Fail the cone's Leaflet polygon instead.
+  await mockStorms(page, [
+    { ...STORM, id: "al90", name: "Badone", intensityKt: 60, radii34Km: 150,
+      forecastPoints: [{ lat: 15, lon: -57, hoursFromIssuance: 24, maxWindKt: 65 }, { lat: 16, lon: -59, hoursFromIssuance: 48, maxWindKt: 70 }] },
+    { ...STORM, id: "al91", name: "Goodtwo", intensityKt: 70, lat: 14, lon: -50 },
+  ]);
+  // Leaflet assigns window.L when its script runs: wrap polygon as soon as it appears.
+  await page.addInitScript(() => {
+    let lib;
+    Object.defineProperty(window, "L", {
+      configurable: true,
+      get: () => lib,
+      set: (v) => { lib = v; v.polygon = () => { throw new Error("cone boom"); }; },
+    });
+  });
+  await load(page, "light");
+  await page.evaluate(() => { location.hash = "#radar"; });
+  await expect.poll(() => errors.some((e) => /render failed: map storm Badone/.test(e))).toBe(true);
+  expect(errors.some((e) => /render failed: map(?! storm)/.test(e))).toBe(false);
+  await expect(page.locator(".leaflet-tooltip", { hasText: "Badone (60 kt)" })).toHaveCount(1);
+  await expect(page.locator(".leaflet-tooltip", { hasText: "Goodtwo (70 kt)" })).toHaveCount(1);
+  // Badone: 34-kt circle (only storm with one), island line (one per storm), track and its two forecast markers
+  await expect(page.locator('path[stroke="#f97316"]')).toHaveCount(1);
+  await expect(page.locator('path[stroke="#475569"]')).toHaveCount(2);
+  await expect(page.locator('path[stroke="#fbbf24"][stroke-dasharray="8 5"]')).toHaveCount(1);
+  await expect(page.locator('path[stroke="#fbbf24"][fill="#f59e0b"]')).toHaveCount(2);
+});
+
+test("a storm with malformed forecastPoints keeps its marker and does not hide later storms on the map (#129)", async ({ page }) => {
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  // forecastPoints is not an array, so forecast filtering throws for the first storm
+  await mockStorms(page, [
+    { ...STORM, id: "al90", name: "Badone", intensityKt: 60, radii34Km: 150, forecastPoints: 5 },
+    { ...STORM, id: "al91", name: "Goodtwo", intensityKt: 70, lat: 14, lon: -50 },
+  ]);
+  await load(page, "light");
+  await page.evaluate(() => { location.hash = "#radar"; });
+  await expect(page.locator(".leaflet-tooltip", { hasText: "Goodtwo (70 kt)" })).toHaveCount(1);
+  await expect(page.locator(".leaflet-tooltip", { hasText: "Badone (60 kt)" })).toHaveCount(1);
+  expect(errors.some((e) => /render failed: map storm Badone/.test(e))).toBe(true);
+  expect(errors.some((e) => /render failed: map(?! storm)/.test(e))).toBe(false);
+  // Badone's 34-kt circle (only storm with one) and both island lines are drawn before the forecast filter
+  await expect(page.locator('path[stroke="#f97316"]')).toHaveCount(1);
+  await expect(page.locator('path[stroke="#475569"]')).toHaveCount(2);
+});
+
 // the skip link must not take the native #main route when pressed before `load`.
 // An <img> added as soon as <body> exists and held by a route keeps `load`
 // pending, while the deferred app.js still runs at DOMContentLoaded.
