@@ -1016,6 +1016,34 @@ test.describe("radar island labels (#128)", () => {
     });
   }
 
+  // Labels can sit over sea, land or radar returns, so contrast is judged text-vs-outline (#128),
+  // plus the glyph must stand out from the background via the text or the outline.
+  // Land values approximate CARTO's nolabels land (light #f2efe9/#e8e6e1, dark #1c1c1c/#2d2d2d).
+  // Radar colours are the key's, composited at the radar layer's 0.6 opacity over the sea.
+  const over = (fg, bg, a) => fg.map((v, i) => Math.round(v * a + bg[i] * (1 - a)));
+  const RADAR = { "light rain": [0x27, 0xae, 0xe2], steady: [0x3b, 0xb1, 0x43], heavy: [0xf2, 0xc2, 0x00], downpour: [0xe5, 0x39, 0x35] };
+  const LAND = { light: [[0xf2, 0xef, 0xe9], [0xe8, 0xe6, 0xe1]], dark: [[0x1c, 0x1c, 0x1c], [0x2d, 0x2d, 0x2d]] };
+  for (const theme of ["light", "dark"]) {
+    test(`label text/outline contrast holds over sea, land and radar (${theme})`, async ({ page }) => {
+      await openRadar(page, theme, 200);
+      const el = page.locator(".map-label").filter({ hasText: /^Grenada$/i });
+      await expect(el).toBeVisible();
+      const { text, outline, spread } = await el.evaluate((e) => {
+        const cs = getComputedStyle(e);
+        const rgb = (c) => c.match(/\d+/g).slice(0, 3).map(Number);
+        const shadows = cs.textShadow.match(/rgba?\([^)]+\)\s+-?\d+px\s+-?\d+px/g) || [];
+        return { text: rgb(cs.color), outline: rgb(cs.textShadow), spread: Math.max(0, ...shadows.map((s) => Math.max(...s.match(/-?\d+px/g).map((v) => Math.abs(parseInt(v)))))) };
+      });
+      const bgs = { sea: SEA[theme], "land A": LAND[theme][0], "land B": LAND[theme][1],
+        ...Object.fromEntries(Object.entries(RADAR).map(([k, c]) => [`radar ${k}`, over(c, SEA[theme], 0.6)])) };
+      expect(cr(text, outline), "text vs outline").toBeGreaterThanOrEqual(AA_TEXT);
+      expect(spread, "outline width px").toBeGreaterThanOrEqual(2);
+      for (const [name, bg] of Object.entries(bgs)) {
+        expect(Math.max(cr(text, bg), cr(outline, bg)), `${theme} ${name} glyph vs background`).toBeGreaterThanOrEqual(3);
+      }
+    });
+  }
+
   test("switching theme restyles the labels and swaps the tile style", async ({ page }) => {
     const requested = await openRadar(page, "light", 200);
     await expect(page.locator(".map-label").first()).toBeVisible();

@@ -356,10 +356,14 @@
     #map { height: 360px; background: var(--card-2); }
     /* OpenStreetMap fallback tiles are light; invert them to sit with the dark theme. */
     [data-theme="dark"] .basemap-fallback { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.85); }
-    /* Own island labels over the *_nolabels tiles (#128): theme text colour plus a halo in the page background, so they read on sea and land alike. */
+    /* Own island labels over the *_nolabels tiles (#128). Solid-outline approach: theme text colour with a 2px outline in the opposite tone (white round dark text; near-black round light text), so contrast is text-vs-outline and holds over sea, land and radar returns alike. */
+    :root { --map-outline: #05080f; }
+    :root[data-theme="light"] { --map-outline: #ffffff; }
     .map-label { position: absolute; transform: translate(-50%, 6px); white-space: nowrap; pointer-events: none;
       font: 700 11px/1 system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text);
-      text-shadow: -1px -1px 0 var(--card), 1px -1px 0 var(--card), -1px 1px 0 var(--card), 1px 1px 0 var(--card), 0 0 3px var(--card); }
+      text-shadow: -2px 0 0 var(--map-outline), 2px 0 0 var(--map-outline), 0 -2px 0 var(--map-outline), 0 2px 0 var(--map-outline),
+        -2px -2px 0 var(--map-outline), 2px -2px 0 var(--map-outline), -2px 2px 0 var(--map-outline), 2px 2px 0 var(--map-outline),
+        -1px -1px 0 var(--map-outline), 1px -1px 0 var(--map-outline), -1px 1px 0 var(--map-outline), 1px 1px 0 var(--map-outline); }
     .map-label.above { transform: translate(-50%, calc(-100% - 6px)); }
     @media (max-width: 720px) { #map { height: 280px; } }
 
