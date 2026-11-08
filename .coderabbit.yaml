@@ -17,7 +17,6 @@ reviews:
     overrides:
       - paths:
           - "**/package-lock.json"
-          - "**/.terraform.lock.hcl"
         enabled: false
       # The risk rating is a judgement, so a small change here could still
       # rate low; the threat level and how it's briefed always need a human.
@@ -46,9 +45,6 @@ reviews:
 
   path_filters:
     - "!**/node_modules/**"
-    - "!**/.terraform/**"
-    - "!**/.terraform.lock.hcl"
-    - "!**/*.tfstate*"
     - "!**/package-lock.json"
     - "!docs/superpowers/**"
 
@@ -87,7 +83,10 @@ reviews:
         After changing any file in the SHELL list in web/sw.js (index.html, app.js,
         the manifest, icons) or sw.js itself, the CACHE version must be bumped;
         CloudFront invalidation is manual. Check accessibility and
-        plain language for a public audience.
+        plain language for a public audience. The CSP is set in
+        chrisfixesit/tofu-or-not-tofu (accounts/sandbox/hurricane-ready/cloudfront.tf):
+        a new third-party origin (tiles, iframes, scripts, fetches) needs a
+        matching CSP change there before it's released, or browsers block it.
     - path: "{Dockerfile,compose*.yaml}"
       instructions: >
         Keep the container hardening (non-root, read-only filesystem, dropped
@@ -103,10 +102,6 @@ reviews:
     gitleaks:
       enabled: true
     eslint:
-      enabled: true
-    checkov:
-      enabled: true
-    tflint:
       enabled: true
     hadolint:
       enabled: true
