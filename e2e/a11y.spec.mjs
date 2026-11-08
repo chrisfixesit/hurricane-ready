@@ -446,3 +446,33 @@ test("radar and satellite play buttons: visible label is the accessible name", a
     await expect(btn).toHaveAccessibleName(play);
   }
 });
+
+// (#104) alerts push the layout down: after a nav click the focused heading
+// button must still be fully in view (and below the sticky nav on mobile).
+for (const [w, h] of [[320, 480], [1280, 500]]) {
+  test(`focused page heading stays in view with alerts showing at ${w}x${h}`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto(BASE, { waitUntil: "load" });
+    await expect(page.locator("#banner-title")).not.toHaveText("Checking the skies…", { timeout: 15000 });
+    await page.evaluate(() => {
+      for (const id of ["civil-alert", "alerts-bar"]) {
+        const el = document.getElementById(id);
+        el.hidden = false;
+        el.textContent = "Test alert. ".repeat(40);
+      }
+    });
+    for (const id of ["storms", "prep"]) {
+      await page.locator(`.section-nav a[href="#${id}"]`).click();
+      const toggle = page.locator(`.card[data-page="${id}"]:not([hidden]) .card-toggle`).first();
+      await expect(toggle).toBeFocused();
+      const r = await page.evaluate((id) => {
+        const t = document.querySelector(`.card[data-page="${id}"] .card-toggle`).getBoundingClientRect();
+        return { top: t.top, bottom: t.bottom, nav: document.querySelector(".section-nav").getBoundingClientRect().bottom,
+          vh: innerHeight, mobileNav: document.querySelector(".section-nav").getBoundingClientRect().width > innerWidth / 2 };
+      }, id);
+      expect(r.top).toBeGreaterThanOrEqual(0);
+      expect(r.bottom).toBeLessThanOrEqual(r.vh);
+      if (r.mobileNav) expect(r.top).toBeGreaterThanOrEqual(r.nav);
+    }
+  });
+}

@@ -1095,7 +1095,15 @@
       if (page === "radar" && map) requestAnimationFrame(() => map.invalidateSize());
       if (scroll) window.scrollTo(0, 0);
       // User-initiated change only: the page's heading button names the new page for screen readers (#104).
-      if (focus) document.querySelector(`.card[data-page="${page}"]:not([hidden]) .card-toggle`)?.focus({ preventScroll: true });
+      if (focus) {
+        const t = document.querySelector(`.card[data-page="${page}"]:not([hidden]) .card-toggle`);
+        if (t) {
+          t.focus({ preventScroll: true });
+          // On short screens with alerts above the layout the toggle can sit below the fold (2.4.11);
+          // scroll-margin on .card-toggle keeps it clear of the sticky nav.
+          t.scrollIntoView({ block: "nearest" });
+        }
+      }
     }
     function setupRouter() {
       // Skip link (#100): focus main without touching location.hash, so no dead
