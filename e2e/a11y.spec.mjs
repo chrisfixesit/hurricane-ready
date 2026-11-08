@@ -82,6 +82,12 @@ test("UV High badge and WARNING chip have AA contrast in light theme", async ({ 
     document.getElementById("storms-body").insertAdjacentHTML("beforeend",
       '<tr><td><span id="t-chip" class="chip WARNING">WARNING</span></td></tr>');
   });
+  // the hash router hides every card but the active page's, so measure each
+  // badge only once its route is showing
+  await page.evaluate(() => { location.hash = "#sea"; });
+  await expect(page.locator("#t-uv")).toBeVisible();
   expect(await ratio(page, "#t-uv")).toBeGreaterThanOrEqual(AA_TEXT);
+  await page.evaluate(() => { location.hash = "#storms"; });
+  await expect(page.locator("#t-chip")).toBeVisible();
   expect(await ratio(page, "#t-chip")).toBeGreaterThanOrEqual(AA_TEXT);
 });
