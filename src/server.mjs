@@ -22,7 +22,8 @@ import { weakEtag } from "./etag.mjs";
 import { fetchLiveStorms, createReplaySource } from "./nhc.mjs";
 import { fetchAdvisory } from "./advisory.mjs";
 import { fetchCurrentWeather, fetchOutlook } from "./weather.mjs";
-import { fetchTropicalOutlook, fetchTropicalWaves, ATLANTIC_NAMES_2026, stormsSoFar, fetchSeasonNamesUsed } from "./tropical.mjs";
+import { fetchTropicalOutlook, fetchTropicalWaves, stormsSoFar, fetchSeasonNamesUsed } from "./tropical.mjs";
+import { builtInNames, fetchSeasonNames, namesReached } from "./storm-names.mjs";
 import { fetchCivilAlerts } from "./civil.mjs";
 import { assess } from "./threat.mjs";
 import { generateBriefing } from "./briefing.mjs";
@@ -124,7 +125,8 @@ let status = {
   tropical: null,
   waves: null,
   civilAlert: null,
-  seasonNames: ATLANTIC_NAMES_2026,
+  season: new Date().getUTCFullYear(),
+  seasonNames: builtInNames(new Date().getUTCFullYear()),
   stormsSoFar: 0,
   mode: config.replay ? "replay" : "live",
   level: state.level,
@@ -309,14 +311,18 @@ async function tick() {
     // single-flight loop (#19). The earlier code let weather/outlook block
     // every tick for up to 8s (their timeout), stretching the replay
     // beyond CI's polling budget.
-    const [weather, outlook, tropical, civilAlert, waves, namesUsed] = await Promise.all([
+    const season = new Date().getUTCFullYear();
+    const [weather, outlook, tropical, civilAlert, waves, namesUsed, seasonNames] = await Promise.all([
       config.replay ? Promise.resolve(null) : fetchCurrentWeather(config.island),
       config.replay ? Promise.resolve(null) : fetchOutlook(config.island, { googleKey: config.googleWeatherKey }),
       config.replay ? Promise.resolve(null) : fetchTropicalOutlook(),
       config.replay ? Promise.resolve(null) : fetchCivilAlerts(),
       config.replay ? Promise.resolve(null) : fetchTropicalWaves(config.island.lon),
-      config.replay ? Promise.resolve(null) : fetchSeasonNamesUsed(),
+      config.replay ? Promise.resolve(null) : fetchSeasonNamesUsed({ year: season }),
+      config.replay ? Promise.resolve(builtInNames(season)) : fetchSeasonNames({ year: season }),
     ]);
+    // Last known count only carries over within a season; a new year starts at 0.
+    const priorCount = status.season === season ? status.stormsSoFar : 0;
 
     const cleanStorms = assessment.storms.map(({ advisoryExcerpt, ...s }) => s);
     status = {
@@ -324,9 +330,14 @@ async function tick() {
       level: assessment.overall,
       // advisoryExcerpt feeds the briefing, not the API payload
       storms: cleanStorms,
+      season,
+      seasonNames,
       // NHC's season index covers finished storms; live storms cover the
       // gap before the index lists a newly named one.
-      stormsSoFar: Math.max(namesUsed ?? status.stormsSoFar, stormsSoFar(cleanStorms)),
+      stormsSoFar: Math.max(
+        namesUsed ? namesReached(seasonNames, namesUsed) : priorCount,
+        stormsSoFar(cleanStorms, seasonNames),
+      ),
       weather: weather ?? status.weather,
       outlook: outlook ?? status.outlook,
       tropical: tropical ?? status.tropical,
