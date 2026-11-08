@@ -205,8 +205,12 @@ for (const theme of ["light", "dark"]) {
     expect(await ratio(page, "#season-names .name-chip.used")).toBeGreaterThanOrEqual(AA_TEXT);
     // the helper can't see opacity, which is what used to fade the chip below AA
     expect(await page.locator("#season-names .name-chip.used").evaluate((e) => getComputedStyle(e).opacity)).toBe("1");
+    // the small "active now" / "next" tags sit on tinted chips
+    await expect(page.locator("#season-names .name-chip.active .name-tag")).toBeVisible();
+    expect(await ratio(page, "#season-names .name-chip.active .name-tag")).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(await ratio(page, "#season-names .name-chip.next .name-tag")).toBeGreaterThanOrEqual(AA_TEXT);
     const note = page.locator("#storms-body small", { hasText: "may track very close" });
     await expect(note).toBeVisible();
-    expect(await ratio(page, "#storms-body small.pass-close, #storms-body small")).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(await ratio(page, "#storms-body small.pass-close")).toBeGreaterThanOrEqual(AA_TEXT);
   });
 }
