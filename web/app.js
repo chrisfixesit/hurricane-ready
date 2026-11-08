@@ -28,6 +28,12 @@
     // wrong day-of-week labels on the 7-day strip and the wrong wall-clock
     // for "winds reach us by X" — confusing during an actual storm.
     const ISLAND_TZ = "America/Barbados";
+    // The feed's hourly/sunrise times are naive island-local strings
+    // ("2026-11-08T13:00"), which new Date() would read in the viewer's zone.
+    // Pin them to Barbados, UTC-4 all year with no DST (#118). Strings that
+    // already carry Z or an offset pass through unchanged.
+    const parseIslandTime = (iso) =>
+      new Date(/T\d{2}:\d{2}(:\d{2})?$/.test(iso) ? iso + "-04:00" : iso);
     // Open-Meteo daily.date is already a YYYY-MM-DD calendar date in the island
     // TZ, so its weekday is timezone-independent. We parse as UTC midnight and
     // format in UTC: formatting in a negative-offset zone (island is UTC-4) would
@@ -233,7 +239,7 @@
     const HOUR_FMT = new Intl.DateTimeFormat("en-GB", { timeZone: ISLAND_TZ, hour: "numeric", hour12: true });
     const hourLabel = (iso) => {
       if (!iso) return "—";
-      const d = new Date(iso);
+      const d = parseIslandTime(iso);
       if (!Number.isFinite(d.getTime())) return "—";
       // Intl gives "1 pm" / "12 am" with a space; collapse to "1pm".
       return HOUR_FMT.format(d).toLowerCase().replace(/\s/g, "");
@@ -243,7 +249,7 @@
       // browser's local TZ — a UK user opening this saw sunrise/sunset and
       // storm-arrival times shifted by their offset.
       if (!iso) return "—";
-      const d = new Date(iso);
+      const d = parseIslandTime(iso);
       if (!Number.isFinite(d.getTime())) return "—";
       // Intl returns e.g. "1:24 pm" with en-GB + hour12.
       return ISLAND_TIME_FMT.format(d).toLowerCase();
@@ -752,10 +758,10 @@
       const dayEl = document.getElementById("sky-day");
       if (!a) { g.innerHTML = `<div class="wx-tile"><div class="lbl">Sun &amp; moon</div><div class="val">—</div></div>`; if (dayEl) dayEl.textContent = ""; return; }
       if (dayEl) {
-        const d = a.sunrise ? new Date(a.sunrise) : new Date();
-        const today = new Date();
-        const sameDay = d.toDateString() === today.toDateString();
-        const ds = d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+        const d = a.sunrise ? parseIslandTime(a.sunrise) : new Date();
+        const dayFmt = (x) => x.toLocaleDateString([], { timeZone: ISLAND_TZ, weekday: "long", day: "numeric", month: "long" });
+        const ds = dayFmt(d);
+        const sameDay = ds === dayFmt(new Date());
         dayEl.innerHTML = `Sunrise, sunset and moon for <b>${sameDay ? "today" : ds}</b>${sameDay ? " (" + ds + ")" : ""}.`;
       }
       const dl = a.daylightSeconds != null

@@ -174,10 +174,9 @@ const OUTLOOK = {
     date: `2026-11-${String(9 + i).padStart(2, "0")}`, code: 81, description: "Showers",
     maxC: 31, minC: 25, rainProb: 40, thunderProb: 35,
   })),
-  // explicit island offset: hourLabel() formats in America/Barbados, so a naive
-  // timestamp would read differently depending on the runner's timezone
+  // naive island-local times, exactly as the real API sends them (#118)
   hourly: Array.from({ length: 4 }, (_, i) => ({
-    time: `2026-11-09T${String(10 + i).padStart(2, "0")}:00-04:00`, code: 81, description: "Showers",
+    time: `2026-11-09T${String(10 + i).padStart(2, "0")}:00`, code: 81, description: "Showers",
     rainProb: 40, windKmh: 16, gustKmh: 20, thunderProb: 0,
   })),
   sources: {},
@@ -193,6 +192,17 @@ async function loadForecast(page) {
   await expect(days).toHaveCount(7);
   return days;
 }
+// the viewer's timezone must not change what the island hour reads as (#118)
+for (const timezoneId of ["UTC", "Europe/London", "America/Barbados"]) {
+  test.describe(`hourly labels in ${timezoneId}`, () => {
+    test.use({ timezoneId });
+    test("naive island times read as island hours", async ({ page }) => {
+      await loadForecast(page);
+      await expect(page.locator("#hours .hr .t").first()).toHaveText("10am");
+    });
+  });
+}
+
 const text = (loc) => loc.evaluate((el) => el.textContent.replace(/\s+/g, " ").trim());
 
 test("7-day cards expose the condition and High/low labels to screen readers", async ({ page }) => {
