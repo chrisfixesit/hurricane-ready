@@ -273,6 +273,9 @@ test("radar and satellite play buttons: visible label is the accessible name", a
   const radar = page.locator("#radar-toggle");
   const sat = page.locator("#sat-toggle");
   await expect(sat).toBeVisible();
+  // toggleRadar is a no-op until the stubbed frames arrive; showRadarFrame replaces the "—" placeholder
+  await expect(page.locator("#radar-time")).not.toHaveText("—");
+  await expect(sat).toHaveAccessibleName("Play loop");
   for (const [btn, play, pause] of [[radar, "Play radar", "Pause radar"], [sat, "Play loop", "Pause loop"]]) {
     await expect(btn).not.toHaveAttribute("aria-label", /.*/);
     await expect(btn).toHaveAccessibleName(play); // glyph is aria-hidden, so name starts with the visible text
