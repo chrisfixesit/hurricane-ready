@@ -328,6 +328,7 @@
 
     /* Hourly strip */
     .strip-key { font-size: 0.75rem; color: var(--muted); padding: 0 1.1rem 0.45rem; line-height: 1.4; }
+    .hist-intro { font-size: 0.75rem; color: var(--muted); padding: 0 1.1rem 0.45rem; line-height: 1.4; margin: 0; } /* (#111) */
     .strip-key b { color: var(--soft-text); font-weight: 600; }
     .hours { display: flex; gap: 0.5rem; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 0.3rem 1.1rem 1.1rem; }
     .hr { flex: 0 0 auto; width: 66px; text-align: center; border: 1px solid var(--border); border-radius: 11px; padding: 0.5rem 0.3rem; background: var(--card-2); }
@@ -412,7 +413,7 @@
     .chip.WATCH { background: var(--watch-soft); color: #fde047; }
     .chip.WARNING { background: var(--warning-soft); color: #fdba74; }
     .chip.IMMINENT { background: var(--imminent-soft); color: #fca5a5; }
-    .empty { padding: 1.6rem 1.1rem; text-align: center; color: var(--muted); font-size: 0.9rem; }
+    .empty { margin: 0; padding: 1.6rem 1.1rem; text-align: center; color: var(--muted); font-size: 0.9rem; }
     .empty .sun { font-size: 1.6rem; display: block; margin-bottom: 0.3rem; }
 
     .briefing { padding: 0.2rem 1.1rem 0.5rem; white-space: pre-wrap; line-height: 1.65; font-size: 0.92rem; color: var(--soft-text); }
@@ -700,12 +701,13 @@
         <div id="briefing" class="briefing">Loading…</div>
         <p id="briefing-source" class="briefing-source"></p>
         <p class="arrival-note" id="arrival-note" role="status" aria-live="polite" hidden></p>
-        <div class="table-wrap" tabindex="0" role="group" aria-label="Active storms table — scroll sideways for more columns">
+        <p class="empty" id="storms-empty"><span class="sun" aria-hidden="true">☀️</span>No active systems — enjoy the sunshine.</p>
+        <div class="table-wrap" id="storms-table" hidden tabindex="0" role="group" aria-label="Active storms table — scroll sideways for more columns">
           <table>
             <thead>
               <tr><th scope="col">Storm</th><th scope="col">Class</th><th scope="col">Winds</th><th scope="col">Distance now</th><th scope="col">Closest approach</th><th scope="col">Level</th></tr>
             </thead>
-            <tbody id="storms-body"><tr><td colspan="6"><div class="empty"><span class="sun" aria-hidden="true">☀️</span>No active systems — enjoy the sunshine.</div></td></tr></tbody>
+            <tbody id="storms-body"></tbody>
           </table>
         </div>
 
