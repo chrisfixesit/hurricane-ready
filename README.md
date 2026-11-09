@@ -128,19 +128,68 @@ The PNG has the diagram embedded: open it in [draw.io](https://www.drawio.com/) 
 
 ```mermaid
 flowchart LR
-    NHC[NOAA/NHC<br/>CurrentStorms.json] -->|poll 15 min| W[Watcher]
-    FIX[Beryl 2024 fixtures] -->|REPLAY=1| W
-    W --> T[Deterministic<br/>threat engine]
-    T -->|level + data| B[Claude on Bedrock<br/>briefing writer]
-    B -.fallback.-> TPL[Templates]
-    T -->|level change| D[Dispatch]
-    D --> SMS[SNS SMS]
-    D --> EM[SES email]
-    D --> WH[Webhook]
-    W --> API[Dashboard + JSON API]
+    subgraph SRC["Every poll · 15 min"]
+        direction TB
+        NHC["NOAA / NHC<br/>storms + advisories"]
+        FIX["Beryl 2024 replay<br/>REPLAY=1"]
+        CTX["Weather + civil context<br/>Open-Meteo, Google Weather<br/>NHC outlook, CAP-EWS"]
+    end
+
+    subgraph LOOP["Poll loop"]
+        direction TB
+        T{{"Threat engine<br/>deterministic"}}
+        BR["Briefing<br/>Bedrock or templates"]
+        LC{"Level<br/>changed?"}
+        ST[("state.json<br/>saved first")]
+    end
+
+    subgraph OUT["Alerts"]
+        direction TB
+        PUSH["Web Push"]
+        WH["Webhook"]
+        EM["SES email"]
+        SMS["SNS SMS"]
+    end
+
+    subgraph WEB["Served to browsers"]
+        direction TB
+        API["/api/status"]
+        PWA["Dashboard PWA"]
+        SUBS[("subscriptions.json")]
+    end
+
+    NHC --> T
+    FIX -.-> T
+    T --> BR
+    T --> LC
+    LC -- yes --> ST
+    ST --> OUT
+    BR --> API
+    T --> API
+    CTX --> API
+    API --> PWA
+    PWA -- subscribe --> SUBS
+    SUBS --> PUSH
+
+    classDef source fill:#dbeafe,stroke:#2563eb,color:#0f172a
+    classDef engine fill:#fef3c7,stroke:#d97706,color:#0f172a
+    classDef store fill:#e0e7ff,stroke:#4f46e5,color:#0f172a
+    classDef alert fill:#fee2e2,stroke:#dc2626,color:#0f172a
+    classDef off fill:#f1f5f9,stroke:#94a3b8,color:#64748b,stroke-dasharray:4 3
+    classDef web fill:#dcfce7,stroke:#16a34a,color:#0f172a
+    classDef group fill:none,stroke:#94a3b8,stroke-dasharray:2 2
+    class NHC,CTX source
+    class FIX,EM,SMS off
+    class T,LC,BR engine
+    class ST,SUBS store
+    class PUSH,WH alert
+    class API,PWA web
+    class SRC,LOOP,OUT,WEB group
 ```
 
-Container hardening: locally, `compose.yaml` runs the container as the non-root `node` user with a read-only filesystem, `cap_drop: ALL`, `no-new-privileges`, tmpfs for scratch, a healthcheck and state on a named volume. Production (ECS Fargate) has the non-root user and healthcheck, with state on EFS, but not yet the read-only filesystem or dropped capabilities — tracked in #30.
+Each poll, the threat engine scores the active storms against the island. On a level change the new level is written to `/data/state.json` first, and alerts go out only if that write succeeds, so a restart can't fire the same alert twice. Web Push uses the first line of the briefing as its message. Dashed boxes are off in production: replay is a local demo mode, and SES and SNS need `ALERT_EMAILS`, `SENDER_EMAIL` or `ALERT_PHONES` plus task-role permissions. Briefings fall back to templates while Bedrock is off (`DISABLE_AI=1`).
+
+Container hardening: production (ECS Fargate) and `compose.yaml` both run the container as the non-root `node` user with a read-only root filesystem, every Linux capability dropped, a healthcheck, and state on a volume (EFS in production). Only `/data` and `/tmp` are writable. `compose.yaml` also sets `no-new-privileges`, which Fargate can't (#30).
 
 ## Tests
 
