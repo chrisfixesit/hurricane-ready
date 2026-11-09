@@ -42,13 +42,10 @@ export function readJsonSafe(file, fallback, { onError } = {}) {
  * quietly lose alert state or subscribers on the next restart.
  */
 export function resolveDataPath(name, value, dataDir) {
-  if (!path.isAbsolute(dataDir)) {
-    throw new Error(`DATA_DIR must be an absolute path, got "${dataDir}"`);
-  }
+  // Relative paths resolve against the working directory, so `npm run demo`
+  // can use ./data. In the container that's /app, which is outside /data and
+  // still refused.
   const root = path.resolve(dataDir);
-  if (!path.isAbsolute(value)) {
-    throw new Error(`${name} must be an absolute path inside ${root}, got "${value}"`);
-  }
   const resolved = path.resolve(value);
   if (!resolved.startsWith(root + path.sep)) {
     throw new Error(`${name} must be inside ${root}, got "${value}"`);

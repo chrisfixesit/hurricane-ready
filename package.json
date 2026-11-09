@@ -6,7 +6,7 @@
   "description": "Bajan hurricane preparedness alerts: deterministic threat engine, AI briefings, multi-channel dispatch",
   "scripts": {
     "start": "node src/server.mjs",
-    "demo": "REPLAY=1 DISABLE_AI=1 STATE_FILE=./data/state.json node src/server.mjs",
+    "demo": "REPLAY=1 DISABLE_AI=1 DATA_DIR=./data node src/server.mjs",
     "test": "node --test 'test/*.test.mjs'",
     "test:e2e": "playwright test"
   },

@@ -21,11 +21,15 @@ test("resolveDataPath: rejects paths outside the data dir", () => {
   }
 });
 
-test("resolveDataPath: rejects the data dir itself and relative paths", () => {
+test("resolveDataPath: rejects the data dir itself", () => {
   assert.throws(() => resolveDataPath("SUBS_FILE", "/data", "/data"), /SUBS_FILE/);
-  assert.throws(() => resolveDataPath("SUBS_FILE", "subs.json", "/data"), /SUBS_FILE/);
+  assert.throws(() => resolveDataPath("SUBS_FILE", "/data/", "/data"), /SUBS_FILE/);
 });
 
-test("resolveDataPath: rejects a relative data dir", () => {
-  assert.throws(() => resolveDataPath("STATE_FILE", "/data/state.json", "data"), /DATA_DIR/);
+test("resolveDataPath: resolves relative paths against the working directory", () => {
+  // npm run demo uses DATA_DIR=./data.
+  const cwd = process.cwd();
+  assert.equal(resolveDataPath("STATE_FILE", "./data/state.json", "./data"), `${cwd}/data/state.json`);
+  // In the container cwd is /app, so a relative STATE_FILE lands outside /data.
+  assert.throws(() => resolveDataPath("STATE_FILE", "state.json", "/data"), /STATE_FILE/);
 });
