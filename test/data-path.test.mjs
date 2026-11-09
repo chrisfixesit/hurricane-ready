@@ -1,0 +1,42 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import path from "node:path";
+import { resolveDataPath } from "../src/storage.mjs";
+
+// Issue #30: STATE_FILE / SUBS_FILE come from env. With a read-only root
+// filesystem only /data and /tmp are writable, and /tmp is wiped with the
+// task, so a path outside the data dir would silently lose state.
+
+test("resolveDataPath: accepts a file inside the data dir", () => {
+  assert.equal(resolveDataPath("STATE_FILE", "/data/state.json", "/data"), "/data/state.json");
+  assert.equal(resolveDataPath("SUBS_FILE", "/data/sub/subs.json", "/data"), "/data/sub/subs.json");
+});
+
+test("resolveDataPath: normalises the path before checking", () => {
+  assert.equal(resolveDataPath("STATE_FILE", "/data/./x/../state.json", "/data/"), "/data/state.json");
+});
+
+test("resolveDataPath: rejects paths outside the data dir", () => {
+  for (const bad of ["/tmp/state.json", "/app/state.json", "/data/../etc/passwd", "/database/state.json"]) {
+    assert.throws(() => resolveDataPath("STATE_FILE", bad, "/data"), /STATE_FILE.*\/data/, bad);
+  }
+});
+
+test("resolveDataPath: rejects the data dir itself", () => {
+  assert.throws(() => resolveDataPath("SUBS_FILE", "/data", "/data"), /SUBS_FILE/);
+  assert.throws(() => resolveDataPath("SUBS_FILE", "/data/", "/data"), /SUBS_FILE/);
+});
+
+test("resolveDataPath: resolves relative paths against the working directory", () => {
+  // npm run demo uses DATA_DIR=./data.
+  const cwd = process.cwd();
+  assert.equal(resolveDataPath("STATE_FILE", "./data/state.json", "./data"), `${cwd}/data/state.json`);
+  // A relative path that lands outside the data dir is still refused (in the
+  // container cwd is /app). Built from cwd so it holds wherever this runs.
+  assert.throws(() => resolveDataPath("STATE_FILE", path.relative(cwd, "/tmp/state.json"), "/data"), /STATE_FILE/);
+});
+
+test("resolveDataPath: works when the data dir is the filesystem root", () => {
+  assert.equal(resolveDataPath("STATE_FILE", "/state.json", "/"), "/state.json");
+  assert.throws(() => resolveDataPath("STATE_FILE", "/", "/"), /STATE_FILE/);
+});

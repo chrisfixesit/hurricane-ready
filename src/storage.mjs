@@ -33,3 +33,25 @@ export function readJsonSafe(file, fallback, { onError } = {}) {
     return fallback;
   }
 }
+
+/**
+ * Resolve an env-supplied file path and require it to sit inside the data
+ * directory (issue #30). Throws at config load, so the server refuses to
+ * boot: with a read-only root filesystem the only writable places are the
+ * data volume and /tmp, and /tmp dies with the task, so a stray path would
+ * quietly lose alert state or subscribers on the next restart.
+ */
+export function resolveDataPath(name, value, dataDir) {
+  // Relative paths resolve against the working directory, so `npm run demo`
+  // can use ./data. In the container that's /app, which is outside /data and
+  // still refused.
+  const root = path.resolve(dataDir);
+  const resolved = path.resolve(value);
+  // path.relative rather than a string prefix, so "/database" doesn't count
+  // as inside "/data" and DATA_DIR=/ still works.
+  const rel = path.relative(root, resolved);
+  if (!rel || rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+    throw new Error(`${name} must be inside ${root}, got "${value}"`);
+  }
+  return resolved;
+}

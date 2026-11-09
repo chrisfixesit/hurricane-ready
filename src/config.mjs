@@ -1,4 +1,5 @@
 import { validateOutboundUrl } from "./url-safety.mjs";
+import { resolveDataPath } from "./storage.mjs";
 
 const num = (v, fallback) => (v != null && v !== "" ? Number(v) : fallback);
 const list = (v) =>
@@ -33,6 +34,9 @@ if (process.env.WEBHOOK_URL) {
   // allowlist, but still https-only and no private/loopback/metadata IPs.
   validateOutboundUrl("WEBHOOK_URL", process.env.WEBHOOK_URL);
 }
+
+// Persistent state lives here: the /data volume (EFS in production).
+const dataDir = process.env.DATA_DIR || "/data";
 
 export const config = {
   // Island under watch (defaults: Barbados)
@@ -85,6 +89,9 @@ export const config = {
     webhookUrl: process.env.WEBHOOK_URL ?? "",
   },
 
-  stateFile: process.env.STATE_FILE ?? "/data/state.json",
+  // Both files must live under DATA_DIR (#30); a path outside it throws here.
+  dataDir,
+  stateFile: resolveDataPath("STATE_FILE", process.env.STATE_FILE ?? `${dataDir}/state.json`, dataDir),
+  subsFile: resolveDataPath("SUBS_FILE", process.env.SUBS_FILE ?? `${dataDir}/subscriptions.json`, dataDir),
   nhcUrl,
 };
