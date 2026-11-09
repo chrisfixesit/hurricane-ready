@@ -33,3 +33,25 @@ export function readJsonSafe(file, fallback, { onError } = {}) {
     return fallback;
   }
 }
+
+/**
+ * Resolve an env-supplied file path and require it to sit inside the data
+ * directory (issue #30). Throws at config load, so the server refuses to
+ * boot: with a read-only root filesystem the only writable places are the
+ * data volume and /tmp, and /tmp dies with the task, so a stray path would
+ * quietly lose alert state or subscribers on the next restart.
+ */
+export function resolveDataPath(name, value, dataDir) {
+  if (!path.isAbsolute(dataDir)) {
+    throw new Error(`DATA_DIR must be an absolute path, got "${dataDir}"`);
+  }
+  const root = path.resolve(dataDir);
+  if (!path.isAbsolute(value)) {
+    throw new Error(`${name} must be an absolute path inside ${root}, got "${value}"`);
+  }
+  const resolved = path.resolve(value);
+  if (!resolved.startsWith(root + path.sep)) {
+    throw new Error(`${name} must be inside ${root}, got "${value}"`);
+  }
+  return resolved;
+}

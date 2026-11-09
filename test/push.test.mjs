@@ -6,6 +6,7 @@ import { rmSync } from "node:fs";
 
 // Isolate the subscription store to a temp file BEFORE importing the module.
 const subsFile = path.join(tmpdir(), `hr-subs-${process.pid}.json`);
+process.env.DATA_DIR = tmpdir();
 process.env.SUBS_FILE = subsFile;
 delete process.env.VAPID_PUBLIC_KEY;
 delete process.env.VAPID_PRIVATE_KEY;

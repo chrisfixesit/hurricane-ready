@@ -8,6 +8,7 @@
  */
 import webpush from "web-push";
 import { writeJsonAtomic, readJsonSafe } from "./storage.mjs";
+import { config } from "./config.mjs";
 import { isAllowedPushEndpoint } from "./endpoint.mjs";
 import { computeUnsubscribeToken, unsubscribeTokenMatches } from "./unsubscribe-token.mjs";
 import { mapWithConcurrency } from "./concurrency.mjs";
@@ -36,7 +37,7 @@ if (pushEnabled) {
   }
 }
 
-const SUBS_FILE = process.env.SUBS_FILE || "/data/subscriptions.json";
+const SUBS_FILE = config.subsFile;
 
 // Push-endpoint allowlist (issue #17). Defaults cover the known production
 // push services; override via PUSH_ALLOWED_HOSTS (comma-separated). A leading
