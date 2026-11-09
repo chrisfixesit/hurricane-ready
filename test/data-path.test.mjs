@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
 import { resolveDataPath } from "../src/storage.mjs";
 
 // Issue #30: STATE_FILE / SUBS_FILE come from env. With a read-only root
@@ -30,6 +31,12 @@ test("resolveDataPath: resolves relative paths against the working directory", (
   // npm run demo uses DATA_DIR=./data.
   const cwd = process.cwd();
   assert.equal(resolveDataPath("STATE_FILE", "./data/state.json", "./data"), `${cwd}/data/state.json`);
-  // In the container cwd is /app, so a relative STATE_FILE lands outside /data.
-  assert.throws(() => resolveDataPath("STATE_FILE", "state.json", "/data"), /STATE_FILE/);
+  // A relative path that lands outside the data dir is still refused (in the
+  // container cwd is /app). Built from cwd so it holds wherever this runs.
+  assert.throws(() => resolveDataPath("STATE_FILE", path.relative(cwd, "/tmp/state.json"), "/data"), /STATE_FILE/);
+});
+
+test("resolveDataPath: works when the data dir is the filesystem root", () => {
+  assert.equal(resolveDataPath("STATE_FILE", "/state.json", "/"), "/state.json");
+  assert.throws(() => resolveDataPath("STATE_FILE", "/", "/"), /STATE_FILE/);
 });

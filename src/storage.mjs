@@ -47,7 +47,10 @@ export function resolveDataPath(name, value, dataDir) {
   // still refused.
   const root = path.resolve(dataDir);
   const resolved = path.resolve(value);
-  if (!resolved.startsWith(root + path.sep)) {
+  // path.relative rather than a string prefix, so "/database" doesn't count
+  // as inside "/data" and DATA_DIR=/ still works.
+  const rel = path.relative(root, resolved);
+  if (!rel || rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
     throw new Error(`${name} must be inside ${root}, got "${value}"`);
   }
   return resolved;
