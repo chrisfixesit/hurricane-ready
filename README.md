@@ -120,7 +120,7 @@ No credentials at all? It still works: live NHC polling, deterministic levels, t
 
 ![Bim Weather request path from CloudFront to Fargate on AWS, with deploy pipeline](docs/bim-weather-aws-architecture.drawio.png)
 
-Visitors reach CloudFront (Route 53 alias, ACM certificate, WAF in front). CloudFront talks to an internal ALB through a VPC origin, so the app has no public entry point of its own. One Fargate task serves the dashboard and API, keeps its state on EFS, reads the Google Weather key from SSM Parameter Store, and fetches the public weather feeds. Release pushes the image to ECR through an OIDC role and rolls the ECS service. The diagram leaves out the features production doesn't use: Bedrock briefings are off (`DISABLE_AI=1`, so templates are used), and SES email and SNS SMS alerts are off because `ALERT_EMAILS` and `ALERT_PHONES` aren't set and the task role has no SES or SNS permissions. `DISABLE_AI` only controls Bedrock; setting those alert variables (and granting the permissions) turns email and SMS on regardless of it.
+Visitors reach CloudFront (Route 53 alias, ACM certificate, WAF in front). CloudFront talks to an internal ALB through a VPC origin, so the app has no public entry point of its own. One Fargate task serves the dashboard and API, keeps its state on EFS, reads the Google Weather key from SSM Parameter Store, and fetches the public weather feeds. Release pushes the image to ECR through an OIDC role and rolls the ECS service. The diagram leaves out the features production doesn't use: Bedrock briefings are off (`DISABLE_AI=1`, so templates are used), and SES email and SNS SMS alerts are off because `ALERT_EMAILS`, `SENDER_EMAIL` and `ALERT_PHONES` aren't set and the task role has no SES or SNS permissions. `DISABLE_AI` only controls Bedrock; setting those alert variables (email also needs an SES-verified `SENDER_EMAIL`) and granting the permissions turns email and SMS on regardless of it.
 
 The PNG has the diagram embedded: open it in [draw.io](https://www.drawio.com/) to edit it, then export again with `drawio -x -f png -e -b 10 -s 2 -o docs/bim-weather-aws-architecture.drawio.png docs/bim-weather-aws-architecture.drawio.png`. The source of truth for the infrastructure is the `accounts/sandbox/hurricane-ready` stack in tofu-or-not-tofu (see [CI/CD](#cicd)); update the diagram when that stack changes.
 
@@ -140,7 +140,7 @@ flowchart LR
     W --> API[Dashboard + JSON API]
 ```
 
-Container hardening: runs as the non-root `node` user with a healthcheck; in production, state lives on EFS. A read-only root filesystem and dropped Linux capabilities are not applied yet — tracked in #30.
+Container hardening: locally, `compose.yaml` runs the container as the non-root `node` user with a read-only filesystem, `cap_drop: ALL`, `no-new-privileges`, tmpfs for scratch, a healthcheck and state on a named volume. Production (ECS Fargate) has the non-root user and healthcheck, with state on EFS, but not yet the read-only filesystem or dropped capabilities — tracked in #30.
 
 ## Tests
 
