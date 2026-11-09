@@ -116,6 +116,16 @@ No credentials at all? It still works: live NHC polling, deterministic levels, t
 
 ## Architecture
 
+### On AWS (production)
+
+![Bim Weather request path from CloudFront to Fargate on AWS, with deploy pipeline](docs/bim-weather-aws-architecture.drawio.png)
+
+Visitors reach CloudFront (Route 53 alias, ACM certificate, WAF in front). CloudFront talks to an internal ALB through a VPC origin, so the app has no public entry point of its own. One Fargate task serves the dashboard and API, keeps its state on EFS, reads the Google Weather key from SSM Parameter Store, and fetches the public weather feeds. Release pushes the image to ECR through an OIDC role and rolls the ECS service. Bedrock, SES and SNS are switched off in production (`DISABLE_AI=1`), so the diagram leaves them out.
+
+The PNG has the diagram embedded: open it in [draw.io](https://www.drawio.com/) to edit it, then export again with `drawio -x -f png -e -b 10 -s 2 -o docs/bim-weather-aws-architecture.drawio.png docs/bim-weather-aws-architecture.drawio.png`. The source of truth for the infrastructure is the `accounts/sandbox/hurricane-ready` stack in tofu-or-not-tofu (see [CI/CD](#cicd)); update the diagram when that stack changes.
+
+### Inside the app
+
 ```mermaid
 flowchart LR
     NHC[NOAA/NHC<br/>CurrentStorms.json] -->|poll 15 min| W[Watcher]
