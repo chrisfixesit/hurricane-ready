@@ -140,7 +140,7 @@ flowchart LR
     W --> API[Dashboard + JSON API]
 ```
 
-Container hardening: non-root, read-only filesystem, `cap_drop: ALL`, `no-new-privileges`, tmpfs for scratch, healthcheck, state on a named volume.
+Container hardening: runs as the non-root `node` user with a healthcheck; in production, state lives on EFS. A read-only root filesystem and dropped Linux capabilities are not applied yet — tracked in #30.
 
 ## Tests
 
