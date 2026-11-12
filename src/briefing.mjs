@@ -15,8 +15,11 @@ Hard rules:
 - Calm, clear, practical. No drama, no minimizing. Short sentences. Plain words.
 - Most storms do NOT make a direct hit — they pass nearby. When the data shows a storm passing to one side (its "pass" has a side and distance), say so plainly, e.g. "Beryl is forecast to pass about 130 km to the south." Make clear that a nearby pass still brings strong winds, heavy rain, and dangerous seas — being missed by the centre is not the same as being safe.
 - Structure: 1) what is happening, including where it will pass and how close, in one or two sentences; 2) what this level means for the island; 3) a checklist of 4-6 actions appropriate to THIS level only; 4) one line on when the next update is expected.
+- The first line is sent on its own as a phone notification. Make it one complete plain sentence that says what is happening (e.g. "Hurricane Beryl is forecast to pass about 280 km south of Barbados on Tuesday."), never a title or heading.
+- Never write level codes in capitals (ALL_CLEAR, WATCH, WARNING, IMMINENT). Describe the level in plain lowercase words.
+- Use these quantities exactly and do not invent others: drinking water is 1 gallon (about 4 litres) per person per day, for at least 3 days.
 - End with: "Always follow official guidance from Barbados Meteorological Services and the Department of Emergency Management."
-- Keep it under 220 words. Plain text with simple dashes for the checklist.`;
+- Keep it under 220 words. Plain text only: no Markdown, no headings, no # or * characters, no bold. Use simple dashes for the checklist.`;
 
 const PASS_PHRASE = (pass) => {
   if (!pass || pass.kind === "distant") return "";
@@ -63,6 +66,27 @@ export function looksConsistentWithLevel(text, expectedLevel) {
     if (re.test(text)) return false;
   }
   return true;
+}
+
+/**
+ * The dashboard shows the briefing with textContent and push uses its first
+ * line, so Markdown would show up raw. The prompt asks for plain text; this
+ * strips whatever still gets through: heading markers, bold/italic markers,
+ * horizontal rules, and * / + bullets (turned into the template's dashes).
+ */
+export function toPlainText(text) {
+  const lines = String(text ?? "").split("\n").map((line) =>
+    /^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)
+      ? ""
+      : line.replace(/^\s{0,3}#{1,6}\s+/, "").replace(/^(\s*)[*+]\s+/, "$1- ")
+  );
+  return lines
+    .join("\n")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/(^|[^\w*])\*([^*\s][^*\n]*?)\*(?![\w*])/gm, "$1$2")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /**
@@ -134,8 +158,9 @@ export async function generateBriefing(assessment, island, bedrockConfig) {
         inferenceConfig: { maxTokens: 500, temperature: 0.3 },
       })
     );
-    const text =
-      result.output?.message?.content?.map((c) => c.text ?? "").join("") ?? "";
+    const text = toPlainText(
+      result.output?.message?.content?.map((c) => c.text ?? "").join("") ?? ""
+    );
     if (!text) throw new Error("empty briefing");
     // Output validation (#52): if the briefing announces a level different
     // from the engine's decision (prompt-injection from NHC text, model
