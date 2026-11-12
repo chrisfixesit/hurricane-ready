@@ -13,7 +13,7 @@ on:
 permissions:
   contents: read
 
-# One release at a time per ref. Each run pushes :latest and redeploys, so
+# One release at a time per ref. Each run registers a revision and redeploys, so
 # overlapping runs could finish out of order and leave an older build live
 # (seen 2026-11-08 when #94-#96 merged together). Queued runs wait rather
 # than cancel, so a half-finished deploy is never interrupted. GitHub doesn't
@@ -89,29 +89,59 @@ jobs:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # ECR gets only the commit-SHA tag (#34). Deploys reference that exact
+      # image, so the repo can be IMMUTABLE and a rollback really goes back to
+      # the previous build. If this commit's image is already there (a re-run),
+      # reuse it: an IMMUTABLE repo refuses to overwrite a tag.
       - name: Push to ECR
         if: vars.AWS_DEPLOY_ROLE_ARN != ''
         run: |
+          IMAGE="${{ vars.ECR_REPOSITORY }}:${SHA::12}"
           aws ecr get-login-password --region "$AWS_REGION" \
             | docker login --username AWS --password-stdin "${{ vars.ECR_REPOSITORY }}"
-          docker tag hurricane-ready:latest "${{ vars.ECR_REPOSITORY }}:latest"
-          docker tag hurricane-ready:latest "${{ vars.ECR_REPOSITORY }}:${SHA::12}"
-          docker push "${{ vars.ECR_REPOSITORY }}:latest"
-          docker push "${{ vars.ECR_REPOSITORY }}:${SHA::12}"
+          if docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "::notice::$IMAGE is already in ECR; deploying the existing image."
+          else
+            docker tag hurricane-ready:latest "$IMAGE"
+            docker push "$IMAGE"
+          fi
 
-      - name: Redeploy ECS service
+      # Deploy exactly this build (#34). Copy the newest task definition
+      # revision (tofu-or-not-tofu owns its settings), swap in the SHA image,
+      # register it and point the service at it. If ECS's circuit breaker rolls
+      # the deploy back, `services-stable` still succeeds on the old revision,
+      # so check which revision ended up live and fail the run if it isn't ours.
+      - name: Deploy to ECS
         if: vars.AWS_DEPLOY_ROLE_ARN != '' && vars.ECS_CLUSTER != '' && vars.ECS_SERVICE != ''
-        # --task-definition takes the family name, so each release also picks up
-        # the latest revision tofu registered (the service ignores
-        # task_definition drift, so nothing else would switch it).
+        env:
+          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          SERVICE: ${{ vars.ECS_SERVICE }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
         run: |
-          aws ecs update-service \
-            --cluster "${{ vars.ECS_CLUSTER }}" \
-            --service "${{ vars.ECS_SERVICE }}" \
-            --task-definition hurricane-ready \
-            --force-new-deployment \
+          IMAGE="$ECR_REPOSITORY:${SHA::12}"
+          aws ecs describe-task-definition --task-definition hurricane-ready \
+            --region "$AWS_REGION" --query taskDefinition > current-td.json
+          jq --arg img "$IMAGE" '
+            .containerDefinitions |= map(if .name == "app" then .image = $img else . end)
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+          ' current-td.json > new-td.json
+          NEW_TD=$(aws ecs register-task-definition --region "$AWS_REGION" \
+            --cli-input-json file://new-td.json \
+            --query taskDefinition.taskDefinitionArn --output text)
+          echo "Registered $NEW_TD with $IMAGE"
+
+          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
+            --task-definition "$NEW_TD" --region "$AWS_REGION" > /dev/null
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE" \
             --region "$AWS_REGION"
-          aws ecs wait services-stable \
-            --cluster "${{ vars.ECS_CLUSTER }}" \
-            --services "${{ vars.ECS_SERVICE }}" \
-            --region "$AWS_REGION"
+
+          read -r LIVE_TD ROLLOUT < <(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" --region "$AWS_REGION" \
+            --query 'services[0].deployments[?status==`PRIMARY`] | [0].[taskDefinition, rolloutState]' \
+            --output text)
+          if [ "$LIVE_TD" != "$NEW_TD" ] || [ "$ROLLOUT" != "COMPLETED" ]; then
+            echo "::error::Deploy of $IMAGE didn't stick: the service is on $LIVE_TD ($ROLLOUT). ECS rolled back to the last good deployment; check the stopped tasks' reasons in the ECS console."
+            exit 1
+          fi
+          echo "::notice::Live: $NEW_TD running $IMAGE"
