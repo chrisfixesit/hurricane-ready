@@ -16,7 +16,7 @@ Hard rules:
 - Most storms do NOT make a direct hit — they pass nearby. When the data shows a storm passing to one side (its "pass" has a side and distance), say so plainly, e.g. "Beryl is forecast to pass about 130 km to the south." Make clear that a nearby pass still brings strong winds, heavy rain, and dangerous seas — being missed by the centre is not the same as being safe.
 - Structure: 1) what is happening, including where it will pass and how close, in one or two sentences; 2) what this level means for the island; 3) a checklist of 4-6 actions appropriate to THIS level only; 4) one line on when the next update is expected.
 - The first line is sent on its own as a phone notification. Make it one complete plain sentence that says what is happening (e.g. "Hurricane Beryl is forecast to pass about 280 km south of Barbados on Tuesday."), never a title or heading.
-- Never write level codes in capitals (ALL_CLEAR, WATCH, WARNING, IMMINENT). Describe the level in plain lowercase words.
+- Never write level codes in capitals (ALL_CLEAR, WATCH, WARNING, IMMINENT). Describe the level in plain lowercase words. Use the phrase "all clear" only when the level is ALL_CLEAR.
 - Use these quantities exactly and do not invent others: drinking water is 1 gallon (about 4 litres) per person per day, for at least 3 days.
 - End with: "Always follow official guidance from Barbados Meteorological Services and the Department of Emergency Management."
 - Keep it under 220 words. Plain text only: no Markdown, no headings, no # or * characters, no bold. Use simple dashes for the checklist.`;
@@ -48,12 +48,15 @@ const TEMPLATES = {
  * decision appears, treat the briefing as drifted and the caller falls
  * back to the deterministic template.
  *
- * Conservative on purpose: lowercase "watch" / "warning" are normal
- * English. Only the explicit UPPERCASE level tokens — which Claude has
- * no reason to write spontaneously — count as a deviation.
+ * Conservative on purpose: lowercase "watch" / "warning" / "imminent" are
+ * normal English, so only their UPPERCASE tokens count as a deviation.
+ * "all clear" counts in any case: it is not everyday wording, and saying it
+ * at a higher level is exactly the drift this guards against.
  */
 const LEVEL_PATTERNS = [
-  ["ALL_CLEAR", /\bALL[_ -]?CLEAR\b/],
+  // "all clear" is checked in any case: unlike watch/warning it is not
+  // ordinary English, and the prompt asks for lowercase level words.
+  ["ALL_CLEAR", /\ball[_ -]?clear\b/i],
   ["WATCH",     /\bWATCH\b/],
   ["WARNING",   /\bWARNING\b/],
   ["IMMINENT",  /\bIMMINENT\b/],
@@ -101,7 +104,8 @@ export function pushSummary(briefing) {
   const line = (briefing ?? "").split("\n").map((l) => l.trim()).find(Boolean) ?? "";
   if (line.length <= PUSH_SUMMARY_MAX) return line;
   let kept = "";
-  for (const [sentence] of line.matchAll(/[^.!?]+[.!?]+/g)) {
+  // A sentence ends at . ! or ? followed by a space or the end, so "4.5" stays whole.
+  for (const [sentence] of line.matchAll(/.+?[.!?]+(?=\s|$)/g)) {
     if ((kept + sentence).trim().length > PUSH_SUMMARY_MAX) break;
     kept += sentence;
   }

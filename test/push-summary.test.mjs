@@ -50,3 +50,16 @@ test("never exceeds the cap for any input", () => {
     assert.ok(pushSummary(text).length <= PUSH_SUMMARY_MAX);
   }
 });
+
+test("does not split a sentence at a decimal point", () => {
+  const long = "Waves may reach 4.5 metres " + "along exposed coasts ".repeat(10) + ".";
+  const out = pushSummary(long);
+  assert.ok(out.startsWith("Waves may reach 4.5 metres"), out);
+  assert.ok(out.length <= PUSH_SUMMARY_MAX);
+});
+
+test("keeps a sentence that contains a decimal when it fits", () => {
+  const first = "Beryl is 4.5 hours away and moving west at 25 km/h.";
+  const out = pushSummary(first + " " + "x ".repeat(100));
+  assert.equal(out, first);
+});
