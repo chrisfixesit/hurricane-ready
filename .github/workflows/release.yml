@@ -136,12 +136,23 @@ jobs:
           aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE" \
             --region "$AWS_REGION"
 
-          read -r LIVE_TD ROLLOUT < <(aws ecs describe-services \
-            --cluster "$CLUSTER" --services "$SERVICE" --region "$AWS_REGION" \
-            --query 'services[0].deployments[?status==`PRIMARY`] | [0].[taskDefinition, rolloutState]' \
-            --output text)
-          if [ "$LIVE_TD" != "$NEW_TD" ] || [ "$ROLLOUT" != "COMPLETED" ]; then
-            echo "::error::Deploy of $IMAGE didn't stick: the service is on $LIVE_TD ($ROLLOUT). ECS rolled back to the last good deployment; check the stopped tasks' reasons in the ECS console."
+          # services-stable can return while the old task is still draining and
+          # the deployment is IN_PROGRESS, so poll until ECS settles it. A
+          # circuit-breaker rollback makes the previous revision PRIMARY again.
+          for _ in $(seq 1 60); do
+            read -r LIVE_TD ROLLOUT < <(aws ecs describe-services \
+              --cluster "$CLUSTER" --services "$SERVICE" --region "$AWS_REGION" \
+              --query 'services[0].deployments[?status==`PRIMARY`] | [0].[taskDefinition, rolloutState]' \
+              --output text)
+            if [ "$LIVE_TD" != "$NEW_TD" ] || [ "$ROLLOUT" = "FAILED" ]; then
+              echo "::error::Deploy of $IMAGE didn't stick: the service is on $LIVE_TD ($ROLLOUT). ECS rolled back to the last good deployment; check the stopped tasks' reasons in the ECS console."
+              exit 1
+            fi
+            [ "$ROLLOUT" = "COMPLETED" ] && break
+            sleep 10
+          done
+          if [ "$ROLLOUT" != "COMPLETED" ]; then
+            echo "::error::$NEW_TD is PRIMARY but its rollout is still $ROLLOUT after 10 minutes; check the service's events in the ECS console."
             exit 1
           fi
           echo "::notice::Live: $NEW_TD running $IMAGE"
