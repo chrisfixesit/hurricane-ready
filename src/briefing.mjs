@@ -65,6 +65,28 @@ export function looksConsistentWithLevel(text, expectedLevel) {
   return true;
 }
 
+/**
+ * The push notification body: the briefing's first non-blank line, capped at
+ * PUSH_SUMMARY_MAX characters. Template briefings open with one short
+ * sentence, but Claude's first line can run long. Keep as many whole sentences
+ * as fit; failing that, cut on a word boundary and add an ellipsis.
+ */
+export const PUSH_SUMMARY_MAX = 180;
+
+export function pushSummary(briefing) {
+  const line = (briefing ?? "").split("\n").map((l) => l.trim()).find(Boolean) ?? "";
+  if (line.length <= PUSH_SUMMARY_MAX) return line;
+  let kept = "";
+  for (const [sentence] of line.matchAll(/[^.!?]+[.!?]+/g)) {
+    if ((kept + sentence).trim().length > PUSH_SUMMARY_MAX) break;
+    kept += sentence;
+  }
+  if (kept.trim()) return kept.trim();
+  const cut = line.slice(0, PUSH_SUMMARY_MAX - 1);
+  const space = cut.lastIndexOf(" ");
+  return (space > 0 ? cut.slice(0, space) : cut).trimEnd() + "…";
+}
+
 export function templateBriefing(level, islandName, primaryStorm) {
   const base = TEMPLATES[level](islandName, primaryStorm);
   const pass = primaryStorm?.assessment?.pass;
