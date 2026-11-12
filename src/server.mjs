@@ -26,7 +26,7 @@ import { fetchTropicalOutlook, fetchTropicalWaves, stormsSoFar, fetchSeasonNames
 import { builtInNames, fetchSeasonNames, namesReached } from "./storm-names.mjs";
 import { fetchCivilAlerts } from "./civil.mjs";
 import { assess } from "./threat.mjs";
-import { generateBriefing } from "./briefing.mjs";
+import { generateBriefing, pushSummary } from "./briefing.mjs";
 import { dispatchAlert } from "./notify.mjs";
 import {
   pushEnabled,
@@ -294,7 +294,7 @@ async function tick() {
           const pushRes = await sendPushToAll({
             title: `${config.island.name}: ${LEVEL_LABEL[assessment.overall]}`,
             body: rising
-              ? (status.briefing || "").split("\n")[0]
+              ? pushSummary(status.briefing)
               : "Conditions have eased — back to all clear.",
             level: assessment.overall,
             url: "/",

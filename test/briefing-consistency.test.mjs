@@ -57,3 +57,9 @@ test("matches word-boundary only — substrings of larger words do not trip", ()
   assert.equal(looksConsistentWithLevel("OVERWATCH was unusual that night.", "ALL_CLEAR"), true);
   assert.equal(looksConsistentWithLevel("FOREWARNING signs were everywhere.", "ALL_CLEAR"), true);
 });
+
+test("rejects a lowercase 'all clear' when the level is not ALL_CLEAR", () => {
+  assert.equal(looksConsistentWithLevel("Conditions are all clear.", "WARNING"), false);
+  assert.equal(looksConsistentWithLevel("It is all-clear now.", "IMMINENT"), false);
+  assert.equal(looksConsistentWithLevel("Conditions are all clear.", "ALL_CLEAR"), true);
+});
