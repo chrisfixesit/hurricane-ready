@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { deflateSync } from "node:zlib";
+import { readFileSync } from "node:fs";
 
 const BASE = process.env.BASE_URL || "http://localhost:8080";
 const AA_TEXT = 4.5;
@@ -1098,4 +1099,51 @@ test.describe("radar island labels (#128)", () => {
     const a = await attr.boundingBox(), t = await trinidad.boundingBox();
     expect(a.x < t.x + t.width && t.x < a.x + a.width && a.y < t.y + t.height && t.y < a.y + a.height).toBe(false);
   });
+});
+
+// (#140) accent-filled controls: dark text on the light theme's #0e7490 accent
+// was below AA. Dark theme must stay passing too.
+for (const theme of ["light", "dark"]) {
+  test(`accent-filled controls have AA contrast (#140) (${theme})`, async ({ page }) => {
+    await load(page, theme);
+    await page.evaluate(() => {
+      document.getElementById("alerts-bar").hidden = false;
+      const t = document.createElement("button");
+      t.className = "hr-update-toast"; t.id = "hr-update-toast"; t.textContent = "Update available";
+      document.body.appendChild(t);
+    });
+    await page.locator(".skip-link").focus();
+    for (const sel of [".alerts-btn", ".skip-link", "#hr-update-toast"]) {
+      expect(await ratio(page, sel), sel).toBeGreaterThanOrEqual(AA_TEXT);
+    }
+  });
+}
+
+// (#142) no tiny text: .name-tag and .sat-pin must render at >= 11.5px
+test("name-tag and sat-pin font size is at least 0.72rem (#142)", async ({ page }) => {
+  await load(page, "light");
+  await page.evaluate(() => {
+    document.getElementById("season-names").insertAdjacentHTML("beforeend",
+      '<li class="name-chip"><span class="name-tag">next</span></li>');
+  });
+  const sizes = await page.evaluate(() =>
+    [...document.querySelectorAll(".name-tag, .sat-pin")].map((e) => parseFloat(getComputedStyle(e).fontSize)));
+  expect(sizes.length).toBeGreaterThan(1);
+  for (const px of sizes) expect(px).toBeGreaterThanOrEqual(11.5);
+  const upper = await page.evaluate(() =>
+    getComputedStyle(document.querySelector(".name-tag")).textTransform);
+  expect(upper).toBe("none");
+});
+
+test("no stylesheet rule sets font-size below 0.72rem (#142)", () => {
+  const html = readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
+  const css = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join("\n");
+  const small = [...css.matchAll(/font-size:\s*([\d.]+)rem/g)].filter((m) => parseFloat(m[1]) < 0.72).map((m) => m[0]);
+  expect(small).toEqual([]);
+});
+
+// (#141) status bar style: black-translucent without viewport-fit=cover hides content
+test("status bar style is default (#141)", async ({ page }) => {
+  await page.goto(BASE, { waitUntil: "load" });
+  await expect(page.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveAttribute("content", "default");
 });

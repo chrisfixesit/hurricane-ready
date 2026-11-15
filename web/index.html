@@ -14,7 +14,7 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Bim Weather" />
 
   <!-- Open Graph / Twitter -->
@@ -97,6 +97,8 @@
     :root[data-theme="light"] .ALL_CLEAR .b-title, :root[data-theme="light"] .chip.ALL_CLEAR, :root[data-theme="light"] .chance.low { color: #15803d; }
     :root[data-theme="light"] .WATCH .b-title, :root[data-theme="light"] .chip.WATCH, :root[data-theme="light"] .uv.moderate, :root[data-theme="light"] .chance.medium { color: #a16207; }
     :root[data-theme="light"] .WARNING .b-title, :root[data-theme="light"] .chip.WARNING, :root[data-theme="light"] .uv.high { color: #9a3412; } /* (#105) darker for 4.5:1 on the warning tint */
+    /* (#140) white text on the light accent #0e7490 is 5.36:1; the dark navy it inherited was ~2.9:1 */
+    :root[data-theme="light"] .alerts-btn, :root[data-theme="light"] .skip-link, :root[data-theme="light"] .hr-update-toast { color: #ffffff; }
     :root[data-theme="light"] .IMMINENT .b-title, :root[data-theme="light"] .chip.IMMINENT, :root[data-theme="light"] .pass-close, :root[data-theme="light"] .chance.high, :root[data-theme="light"] .name-chip.active, :root[data-theme="light"] .emerg-num b { color: #b91c1c; }
     :root[data-theme="light"] .civil-alert .ca-text, :root[data-theme="light"] .civil-alert .ca-arrow { color: #b91c1c; }
     :root[data-theme="light"] .civil-alert .ca-text b { color: #7f1d1d; }
@@ -303,7 +305,7 @@
     .tile-note { margin-top: 0.45rem; font-size: 0.76rem; color: var(--muted); line-height: 1.5; }
     .tile-note b { color: var(--soft-text); font-weight: 600; }
     .wx-obs { font-size: 0.72rem; color: var(--muted); padding: 0 1.1rem 1.1rem; }
-    .panel-age { font-size: 0.7rem; color: var(--muted); padding: 0 1.1rem 1rem; }
+    .panel-age { font-size: 0.72rem; color: var(--muted); padding: 0 1.1rem 1rem; }
     .flood-note { font-size: 0.88rem; color: var(--soft-text); padding: 0 1.1rem 0.6rem; line-height: 1.5; }
     .flood-note .chance, .arrival-note .chance { margin-right: 0.35rem; }
     .arrival-note { font-size: 0.9rem; color: var(--soft-text); padding: 0.2rem 1.1rem 0.7rem; line-height: 1.5; }
@@ -319,7 +321,7 @@
     .day .hi { font-weight: 800; }
     .day .lo { color: var(--muted); }
     .day .rain { font-size: 0.72rem; color: var(--accent); margin-top: 0.25rem; }
-    .day .th { font-size: 0.7rem; color: var(--muted); }
+    .day .th { font-size: 0.72rem; color: var(--muted); }
 
     /* Hourly strip */
     .strip-key { font-size: 0.75rem; color: var(--muted); padding: 0 1.1rem 0.45rem; line-height: 1.4; }
@@ -330,8 +332,8 @@
     .hr .t { font-size: 0.72rem; color: var(--muted); }
     .hr .ico { font-size: 1.15rem; margin: 0.2rem 0; }
     .hr .r { font-size: 0.74rem; color: var(--accent); }
-    .hr .w { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; }
-    .hr .th { font-size: 0.7rem; color: var(--muted); }
+    .hr .w { font-size: 0.72rem; color: var(--muted); margin-top: 0.1rem; }
+    .hr .th { font-size: 0.72rem; color: var(--muted); }
     /* Google Maps Platform attribution: sans-serif 400, 12px+, white or
        #5E5E5E only, never translated or wrapped (their policy, not ours). */
     /* Read by screen readers, invisible on screen. */
@@ -381,7 +383,7 @@
     .sat-frame { position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--card-2); }
     .sat-scene { position: absolute; top: 0; left: 0; width: 100%; transform-origin: 0 0; transform: scale(2.1) translate(-36%, -52%); }
     .sat-scene img { width: 100%; display: block; }
-    .sat-pin { position: absolute; left: 63%; top: 44%; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; font-size: 0.64rem; color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.95); white-space: nowrap; pointer-events: none; z-index: 2; }
+    .sat-pin { position: absolute; left: 63%; top: 44%; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; font-size: 0.75rem; color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.95); white-space: nowrap; pointer-events: none; z-index: 2; }
     .sat-dot { width: 10px; height: 10px; border-radius: 50%; background: #38bdf8; border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(56,189,248,0.6); margin-bottom: 2px; }
     .sat-bar { display: flex; align-items: center; gap: 0.7rem; padding-top: 0.5rem; font-size: 0.78rem; color: var(--muted); flex-wrap: wrap; }
     .sat-bar button { background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 9px; padding: 0.3rem 0.7rem; font-size: 0.8rem; cursor: pointer; font-weight: 600; }
@@ -425,7 +427,7 @@
     .empty .sun { font-size: 1.6rem; display: block; color: var(--gold); margin-bottom: 0.3rem; }
 
     .briefing { padding: 0.2rem 1.1rem 0.5rem; white-space: pre-wrap; line-height: 1.65; font-size: 0.92rem; color: var(--soft-text); }
-    .briefing-source { font-size: 0.7rem; color: var(--muted); padding: 0 1.1rem 1rem; }
+    .briefing-source { font-size: 0.72rem; color: var(--muted); padding: 0 1.1rem 1rem; }
     .replay-label { padding: 0 1.1rem 0.5rem; font-size: 0.8rem; color: var(--accent); font-style: italic; }
 
     /* Legend */
@@ -454,7 +456,7 @@
     .names { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0.3rem 1.1rem 1.1rem; list-style: none; }
     .name-chip { font-size: 0.8rem; padding: 0.22rem 0.6rem; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); background: var(--card-2); }
     .name-chip.used { text-decoration: line-through; } /* no opacity: it dropped the muted text below AA (#108) */
-    .name-tag { margin-left: 0.3rem; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .name-tag { margin-left: 0.3rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; }
     .name-chip.active { background: var(--imminent-soft); border-color: rgba(239,68,68,0.5); color: #fca5a5; font-weight: 700; }
     .name-chip.next { background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.5); color: var(--accent); font-weight: 700; }
 
