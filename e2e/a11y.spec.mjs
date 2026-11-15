@@ -402,7 +402,8 @@ test("day card visible text is unchanged by the hidden labels", async ({ page })
     for (let n = w.nextNode(); n; n = w.nextNode()) if (!n.parentElement.closest(".sr-only")) out.push(n.textContent);
     return out.join(" ").replace(/\s+/g, " ").trim();
   });
-  expect(visible).toMatch(/^[A-Z][a-z]{2} \S+ 31° 25° 💧 40% ⚡ 35%$/);
+  // rain/thunder glyphs are Lucide SVGs now (#148)
+  expect(visible).toMatch(/^[A-Z][a-z]{2} \S+ 31° 25° 40% 35%$/);
 });
 
 // (#103) the same cards through the accessibility tree rather than the DOM:
@@ -626,11 +627,10 @@ test("radar basemap tiles follow the theme and Barbados tooltip clears the marke
   }
 });
 
-test("alerts, status and advisory link sit in a named region landmark (#110)", async ({ page }) => {
+test("alerts and status sit in a named region landmark (#110)", async ({ page }) => {
   await page.goto(BASE, { waitUntil: "load" });
   const region = page.getByRole("region", { name: "Alerts and status" });
   await expect(region).toHaveCount(1);
-  await expect(region.getByRole("link", { name: /Barbados Met Services/ })).toBeVisible();
   await expect(region.locator("#alerts-bar")).toHaveCount(1);
   await expect(region.locator("#civil-alert")).toHaveCount(1);
   await expect(region.locator("#offline-note")).toHaveCount(1);
