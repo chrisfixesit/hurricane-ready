@@ -51,7 +51,7 @@
     }
 
     // ---- Settings: units + theme, remembered in localStorage ----
-    const settings = { temp: "C", wind: "kmh", theme: "light" };
+    const settings = { temp: "C", wind: "kmh", theme: "auto" };
     function loadSettings() { try { Object.assign(settings, JSON.parse(localStorage.getItem("hr-settings") || "{}")); } catch { /* ignore */ } }
     function saveSettings() { try { localStorage.setItem("hr-settings", JSON.stringify(settings)); } catch { /* ignore */ } }
     const prefersDark = () => !window.matchMedia || window.matchMedia("(prefers-color-scheme: dark)").matches;

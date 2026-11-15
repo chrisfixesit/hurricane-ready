@@ -1147,3 +1147,42 @@ test("status bar style is default (#141)", async ({ page }) => {
   await page.goto(BASE, { waitUntil: "load" });
   await expect(page.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveAttribute("content", "default");
 });
+
+// (#143) theme follows the system by default. No inline script (CSP), so the
+// pre-JS paint comes from CSS alone: block app.js and read the body colour.
+const bodyBg = (page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+for (const [scheme, bg] of [["dark", "rgb(11, 18, 32)"], ["light", "rgb(255, 255, 255)"]]) {
+  test(`before app.js runs, ${scheme} system paints a ${scheme} body (#143)`, async ({ browser }) => {
+    const context = await browser.newContext({ colorScheme: scheme });
+    const page = await context.newPage();
+    await page.route("**/app.js", (r) => r.abort());
+    await page.goto(BASE, { waitUntil: "domcontentloaded" });
+    expect(await page.evaluate(() => document.documentElement.hasAttribute("data-theme"))).toBe(false);
+    expect(await bodyBg(page)).toBe(bg);
+    await context.close();
+  });
+}
+
+test("with no saved setting and a dark system, data-theme becomes dark (#143)", async ({ browser }) => {
+  const context = await browser.newContext({ colorScheme: "dark" });
+  const page = await context.newPage();
+  await page.goto(BASE, { waitUntil: "load" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("#set-theme")).toHaveValue("auto");
+  await context.close();
+});
+
+test("a saved light setting wins over a dark system (#143)", async ({ browser }) => {
+  const context = await browser.newContext({ colorScheme: "dark" });
+  const page = await context.newPage();
+  await page.addInitScript(() => { try { localStorage.setItem("hr-settings", JSON.stringify({ theme: "light" })); } catch { /* ignore */ } });
+  await page.goto(BASE, { waitUntil: "load" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(await bodyBg(page)).toBe("rgb(255, 255, 255)");
+  await context.close();
+});
+
+test("manifest theme_color is the navy masthead (#143)", () => {
+  const m = JSON.parse(readFileSync(new URL("../web/manifest.webmanifest", import.meta.url), "utf8"));
+  expect(m.theme_color).toBe("#0b2e6e");
+});
