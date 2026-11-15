@@ -1138,7 +1138,20 @@ test("name-tag and sat-pin font size is at least 0.72rem (#142)", async ({ page 
 test("no stylesheet rule sets font-size below 0.72rem (#142)", () => {
   const html = readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
   const css = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join("\n");
-  const small = [...css.matchAll(/font-size:\s*([\d.]+)rem/g)].filter((m) => parseFloat(m[1]) < 0.72).map((m) => m[0]);
+  // Also covers px sizes and the `font:` shorthand; px counts as N/16 rem.
+  // Allowlist: .attribution's 12px is fixed by Google Maps Platform policy.
+  const ALLOWED = ["font: 400 12px Roboto"];
+  const decl = /(?:^|[;{\s])(font-size|font):\s*([^;}]*)/g;
+  const small = [];
+  for (const m of css.matchAll(decl)) {
+    const value = m[2];
+    const size = m[1] === "font-size"
+      ? value.match(/^\s*([\d.]+)(rem|px)\b/)
+      : value.match(/(?:^|\s)([\d.]+)(rem|px)(?=\/|\s|$)/);
+    if (!size) continue;
+    const rem = size[2] === "px" ? parseFloat(size[1]) / 16 : parseFloat(size[1]);
+    if (rem < 0.72 && !ALLOWED.some((a) => `${m[1]}: ${value}`.startsWith(a))) small.push(`${m[1]}: ${value.trim()}`);
+  }
   expect(small).toEqual([]);
 });
 
@@ -1205,6 +1218,26 @@ test.describe("200% text (#144)", () => {
     });
   }
 
+  // ~300% (AX5): nothing may widen the page or clip inside the hour/day cards.
+  for (const [name, hash] of [["Today", ""], ["forecast", "#forecast"], ["storms", "#storms"]]) {
+    test(`${name}: nothing clips at 300% text (#144)`, async ({ page }) => {
+      await loadForecast(page);
+      await page.addStyleTag({ content: "html { font-size: 48px !important; }" });
+      if (hash) {
+        await page.evaluate((h) => { location.hash = h; }, hash);
+        await expect(page.locator(`.card[data-page="${hash.slice(1)}"]`).first()).toBeVisible();
+      }
+      const r = await page.evaluate(() => ({
+        sw: document.documentElement.scrollWidth, iw: window.innerWidth,
+        clipped: [...document.querySelectorAll(".hr, .day")]
+          .filter((n) => n.getClientRects().length && n.scrollWidth > n.clientWidth)
+          .map((n) => n.className),
+      }));
+      expect(r.sw).toBeLessThanOrEqual(r.iw);
+      expect(r.clipped).toEqual([]);
+    });
+  }
+
   test("7-day grid wraps instead of clipping at 200% text (#144)", async ({ page }) => {
     await loadForecast(page);
     await page.addStyleTag({ content: "html { font-size: 32px !important; }" });
@@ -1227,7 +1260,8 @@ test.describe("200% text (#144)", () => {
 
 test("html font follows the system text size on Apple platforms (#144)", () => {
   const html = readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
-  expect(html).toMatch(/@supports \(font: -apple-system-body\)\s*\{\s*html\s*\{\s*font: -apple-system-body;/);
+  // Gated to iOS: ungated, desktop Safari resolves it to the 13pt macOS body and shrinks the page.
+  expect(html).toMatch(/@supports \(font: -apple-system-body\) and \(-webkit-touch-callout: default\)\s*\{\s*html\s*\{\s*font: -apple-system-body;/);
 });
 
 // (#145) accent colour means "tappable": rain chance and the next storm name must not wear it
