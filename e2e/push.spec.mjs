@@ -57,8 +57,9 @@ test("(#57) clicking 'Get storm alerts' subscribes and POSTs to /api/subscribe",
   }, { ...fake(endpoint), expirationTime: null });
   await page.goto(BASE, { waitUntil: "load" });
   const btn = page.locator("#alerts-btn");
-  // setState rewrites the copy just before the click handler is wired
-  await expect(page.locator("#alerts-text")).toContainText("Get a push", { timeout: 15000 });
+  // The prefs box is revealed by setState, right before the click handler is
+  // wired; the "Get a push" copy is already in the HTML, so it proves nothing.
+  await expect(page.locator("#alerts-prefs")).toBeVisible({ timeout: 15000 });
   const [req, res] = await Promise.all([
     page.waitForRequest((r) => r.url().endsWith("/api/subscribe") && r.method() === "POST"),
     page.waitForResponse((r) => r.url().endsWith("/api/subscribe")),

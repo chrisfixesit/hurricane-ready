@@ -38,8 +38,12 @@ test("sendPushToAll prunes 410 and 404 subscriptions and keeps the live one", as
 });
 
 test("other send errors (e.g. 500) do not prune", async () => {
+  // Own fixture, so a focused run (--test-name-pattern) doesn't depend on the test above.
+  const { unsubscribeToken } = push.addSubscription(sub("flaky"));
+  const before = push.subscriptionCount();
   webpush.sendNotification = async () => { throw Object.assign(new Error("boom"), { statusCode: 500 }); };
   const r = await push.sendPushToAll({ title: "t", body: "b", level: "WARNING" });
   assert.equal(r.pruned, 0);
-  assert.equal(push.subscriptionCount(), 1);
+  assert.equal(push.subscriptionCount(), before);
+  assert.equal(push.removeSubscription("https://x/flaky", unsubscribeToken).ok, true);
 });
