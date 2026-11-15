@@ -105,7 +105,6 @@
     :root[data-theme="light"] .uv.low, :root[data-theme="light"] .chance.low { color: #14532d; }
     :root[data-theme="light"] .disclaimer { color: #854d0e; }
     :root[data-theme="light"] .offline-note { color: #854d0e; } /* (#102) was dark-theme yellow on near-white */
-    :root[data-theme="light"] .name-chip.next { color: #0369a1; }
 
     /* (#143) Theme follows the system by default. Before app.js sets data-theme (CSP rules out an inline
        script), a light-mode system gets the same light tokens and overrides as :root[data-theme="light"].
@@ -145,7 +144,6 @@
       :root:not([data-theme]) .uv.low, :root:not([data-theme]) .chance.low { color: #14532d; }
       :root:not([data-theme]) .disclaimer { color: #854d0e; }
       :root:not([data-theme]) .offline-note { color: #854d0e; } /* (#102) was dark-theme yellow on near-white */
-      :root:not([data-theme]) .name-chip.next { color: #0369a1; }
       :root:not([data-theme]) .attribution { color: #5E5E5E; }
       :root:not([data-theme]) { --map-outline: #ffffff; }
     }
@@ -365,7 +363,7 @@
     .day .ico { font-size: 1.5rem; margin: 0.3rem 0; }
     .day .hi { font-weight: 800; }
     .day .lo { color: var(--muted); }
-    .day .rain { font-size: 0.72rem; color: var(--accent); margin-top: 0.25rem; }
+    .day .rain { font-size: 0.72rem; color: var(--soft-text); margin-top: 0.25rem; }
     .day .th { font-size: 0.72rem; color: var(--muted); }
 
     /* Hourly strip */
@@ -376,7 +374,7 @@
     .hr { flex: 0 0 auto; width: 66px; text-align: center; border: 1px solid var(--border); border-radius: 11px; padding: 0.5rem 0.3rem; background: var(--card-2); }
     .hr .t { font-size: 0.72rem; color: var(--muted); }
     .hr .ico { font-size: 1.15rem; margin: 0.2rem 0; }
-    .hr .r { font-size: 0.74rem; color: var(--accent); }
+    .hr .r { font-size: 0.74rem; color: var(--soft-text); } /* (#145) accent means tappable; the droplet is the cue */
     .hr .w { font-size: 0.72rem; color: var(--muted); margin-top: 0.1rem; }
     .hr .th { font-size: 0.72rem; color: var(--muted); }
     /* Google Maps Platform attribution: sans-serif 400, 12px+, white or
@@ -503,7 +501,7 @@
     .name-chip.used { text-decoration: line-through; } /* no opacity: it dropped the muted text below AA (#108) */
     .name-tag { margin-left: 0.3rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; }
     .name-chip.active { background: var(--imminent-soft); border-color: rgba(239,68,68,0.5); color: #fca5a5; font-weight: 700; }
-    .name-chip.next { background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.5); color: var(--accent); font-weight: 700; }
+    .name-chip.next { background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.5); color: var(--text); font-weight: 700; } /* (#145) accent border only; text stays body colour */
 
     /* Get ready */
     .prep { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.8rem; padding: 0.3rem 1.1rem 0.8rem; }

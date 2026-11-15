@@ -346,12 +346,12 @@ const OUTLOOK = {
   sources: {},
 };
 
-async function loadForecast(page) {
+async function loadForecast(page, theme = "light") {
   await page.route("**/api/status", async (route) => {
     const res = await route.fetch();
     await route.fulfill({ json: { ...(await res.json()), outlook: OUTLOOK } });
   });
-  await load(page, "light");
+  await load(page, theme);
   const days = page.locator("#days .day");
   await expect(days).toHaveCount(7);
   return days;
@@ -1229,3 +1229,38 @@ test("html font follows the system text size on Apple platforms (#144)", () => {
   const html = readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
   expect(html).toMatch(/@supports \(font: -apple-system-body\)\s*\{\s*html\s*\{\s*font: -apple-system-body;/);
 });
+
+// (#145) accent colour means "tappable": rain chance and the next storm name must not wear it
+for (const theme of ["light", "dark"]) {
+  test(`rain chance text is not link-coloured and keeps AA contrast (${theme}) (#145)`, async ({ page }) => {
+    await loadForecast(page, theme);
+    const link = await page.evaluate(() => getComputedStyle(document.querySelector(".tropical-src a")).color);
+    for (const [sel, hash] of [["#hours .hr .r", "#home"], ["#days .day .rain", "#forecast"]]) {
+      await page.evaluate((h) => { location.hash = h; }, hash);
+      await expect(page.locator(sel).first()).toBeVisible();
+      const color = await page.locator(sel).first().evaluate((e) => getComputedStyle(e).color);
+      expect(color, sel).not.toBe(link);
+      expect(await ratio(page, sel), sel).toBeGreaterThanOrEqual(AA_TEXT);
+    }
+  });
+
+  test(`next storm name uses body text colour, bold, with AA contrast (${theme}) (#145)`, async ({ page }) => {
+    await mockSeason(page);
+    await load(page, theme);
+    await page.evaluate(() => { location.hash = "#storms"; });
+    const chip = page.locator("#season-names .name-chip.next");
+    await expect(chip).toBeVisible();
+    const textColor = await page.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--text)";
+      document.body.appendChild(probe);
+      const c = getComputedStyle(probe).color;
+      probe.remove();
+      return c;
+    });
+    const cs = await chip.evaluate((e) => ({ color: getComputedStyle(e).color, weight: getComputedStyle(e).fontWeight }));
+    expect(cs.color).toBe(textColor);
+    expect(Number(cs.weight)).toBeGreaterThanOrEqual(700);
+    expect(await ratio(page, "#season-names .name-chip.next")).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+}
