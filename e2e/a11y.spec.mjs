@@ -1238,6 +1238,22 @@ test.describe("200% text (#144)", () => {
     });
   }
 
+  // At 320px with 300% text a 5.25rem column (252px) is wider than the grid,
+  // and the card's overflow: hidden would cut the forecast off (#144).
+  test("7-day cards stay inside the grid at 320px and 300% text (#144)", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
+    await loadForecast(page);
+    await page.addStyleTag({ content: "html { font-size: 48px !important; }" });
+    await page.evaluate(() => { location.hash = "#forecast"; });
+    await expect(page.locator("#days .day").first()).toBeVisible();
+    const r = await page.evaluate(() => {
+      const grid = document.querySelector("#days").getBoundingClientRect();
+      return [...document.querySelectorAll("#days .day")].map((d) => d.getBoundingClientRect().right - grid.right);
+    });
+    expect(r.length).toBeGreaterThan(0);
+    for (const over of r) expect(over).toBeLessThanOrEqual(0.5);
+  });
+
   test("7-day grid wraps instead of clipping at 200% text (#144)", async ({ page }) => {
     await loadForecast(page);
     await page.addStyleTag({ content: "html { font-size: 32px !important; }" });

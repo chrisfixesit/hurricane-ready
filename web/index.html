@@ -363,7 +363,7 @@
 
     /* 7-day forecast */
     .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; padding: 0.3rem 1.1rem 1.1rem; }
-    @media (max-width: 720px) { .days { grid-template-columns: repeat(auto-fit, minmax(5.25rem, 1fr)); } }
+    @media (max-width: 720px) { .days { grid-template-columns: repeat(auto-fit, minmax(min(5.25rem, 100%), 1fr)); } } /* (#144) min() caps the column at the grid width on narrow screens with large text */
     .day { border: 1px solid var(--border); border-radius: 12px; padding: 0.6rem 0.35rem; text-align: center; background: var(--card-2); }
     .day .dow { font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: none; letter-spacing: 0; }
     .day .ico { font-size: 1.5rem; margin: 0.3rem 0; }
