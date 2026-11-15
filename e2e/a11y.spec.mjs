@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { deflateSync } from "node:zlib";
+import { readFileSync } from "node:fs";
 
 const BASE = process.env.BASE_URL || "http://localhost:8080";
 const AA_TEXT = 4.5;
@@ -345,12 +346,12 @@ const OUTLOOK = {
   sources: {},
 };
 
-async function loadForecast(page) {
+async function loadForecast(page, theme = "light") {
   await page.route("**/api/status", async (route) => {
     const res = await route.fetch();
     await route.fulfill({ json: { ...(await res.json()), outlook: OUTLOOK } });
   });
-  await load(page, "light");
+  await load(page, theme);
   const days = page.locator("#days .day");
   await expect(days).toHaveCount(7);
   return days;
@@ -1099,3 +1100,217 @@ test.describe("radar island labels (#128)", () => {
     expect(a.x < t.x + t.width && t.x < a.x + a.width && a.y < t.y + t.height && t.y < a.y + a.height).toBe(false);
   });
 });
+
+// (#140) accent-filled controls: dark text on the light theme's #0e7490 accent
+// was below AA. Dark theme must stay passing too.
+for (const theme of ["light", "dark"]) {
+  test(`accent-filled controls have AA contrast (#140) (${theme})`, async ({ page }) => {
+    await load(page, theme);
+    await page.evaluate(() => {
+      document.getElementById("alerts-bar").hidden = false;
+      const t = document.createElement("button");
+      t.className = "hr-update-toast"; t.id = "hr-update-toast"; t.textContent = "Update available";
+      document.body.appendChild(t);
+    });
+    await page.locator(".skip-link").focus();
+    for (const sel of [".alerts-btn", ".skip-link", "#hr-update-toast"]) {
+      expect(await ratio(page, sel), sel).toBeGreaterThanOrEqual(AA_TEXT);
+    }
+  });
+}
+
+// (#142) no tiny text: .name-tag and .sat-pin must render at >= 11.5px
+test("name-tag and sat-pin font size is at least 0.72rem (#142)", async ({ page }) => {
+  await load(page, "light");
+  await page.evaluate(() => {
+    document.getElementById("season-names").insertAdjacentHTML("beforeend",
+      '<li class="name-chip"><span class="name-tag">next</span></li>');
+  });
+  const sizes = await page.evaluate(() =>
+    [...document.querySelectorAll(".name-tag, .sat-pin")].map((e) => parseFloat(getComputedStyle(e).fontSize)));
+  expect(sizes.length).toBeGreaterThan(1);
+  for (const px of sizes) expect(px).toBeGreaterThanOrEqual(11.5);
+  const upper = await page.evaluate(() =>
+    getComputedStyle(document.querySelector(".name-tag")).textTransform);
+  expect(upper).toBe("none");
+});
+
+test("no stylesheet rule sets font-size below 0.72rem (#142)", () => {
+  const html = readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
+  const css = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join("\n");
+  // Also covers px sizes and the `font:` shorthand; px counts as N/16 rem.
+  // Allowlist: .attribution's 12px is fixed by Google Maps Platform policy.
+  const ALLOWED = ["font: 400 12px Roboto"];
+  const decl = /(?:^|[;{\s])(font-size|font):\s*([^;}]*)/g;
+  const small = [];
+  for (const m of css.matchAll(decl)) {
+    const value = m[2];
+    const size = m[1] === "font-size"
+      ? value.match(/^\s*([\d.]+)(rem|px)\b/)
+      : value.match(/(?:^|\s)([\d.]+)(rem|px)(?=\/|\s|$)/);
+    if (!size) continue;
+    const rem = size[2] === "px" ? parseFloat(size[1]) / 16 : parseFloat(size[1]);
+    if (rem < 0.72 && !ALLOWED.some((a) => `${m[1]}: ${value}`.startsWith(a))) small.push(`${m[1]}: ${value.trim()}`);
+  }
+  expect(small).toEqual([]);
+});
+
+// (#141) status bar style: black-translucent without viewport-fit=cover hides content
+test("status bar style is default (#141)", async ({ page }) => {
+  await page.goto(BASE, { waitUntil: "load" });
+  await expect(page.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveAttribute("content", "default");
+});
+
+// (#143) theme follows the system by default. No inline script (CSP), so the
+// pre-JS paint comes from CSS alone: block app.js and read the body colour.
+const bodyBg = (page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+for (const [scheme, bg] of [["dark", "rgb(11, 18, 32)"], ["light", "rgb(255, 255, 255)"]]) {
+  test(`before app.js runs, ${scheme} system paints a ${scheme} body (#143)`, async ({ browser }) => {
+    const context = await browser.newContext({ colorScheme: scheme });
+    const page = await context.newPage();
+    await page.route("**/app.js", (r) => r.abort());
+    await page.goto(BASE, { waitUntil: "domcontentloaded" });
+    expect(await page.evaluate(() => document.documentElement.hasAttribute("data-theme"))).toBe(false);
+    expect(await bodyBg(page)).toBe(bg);
+    await context.close();
+  });
+}
+
+test("with no saved setting and a dark system, data-theme becomes dark (#143)", async ({ browser }) => {
+  const context = await browser.newContext({ colorScheme: "dark" });
+  const page = await context.newPage();
+  await page.goto(BASE, { waitUntil: "load" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("#set-theme")).toHaveValue("auto");
+  await context.close();
+});
+
+test("a saved light setting wins over a dark system (#143)", async ({ browser }) => {
+  const context = await browser.newContext({ colorScheme: "dark" });
+  const page = await context.newPage();
+  await page.addInitScript(() => { try { localStorage.setItem("hr-settings", JSON.stringify({ theme: "light" })); } catch { /* ignore */ } });
+  await page.goto(BASE, { waitUntil: "load" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(await bodyBg(page)).toBe("rgb(255, 255, 255)");
+  await context.close();
+});
+
+test("manifest theme_color is the navy masthead (#143)", () => {
+  const m = JSON.parse(readFileSync(new URL("../web/manifest.webmanifest", import.meta.url), "utf8"));
+  expect(m.theme_color).toBe("#0b2e6e");
+});
+
+// (#144) text scales with the user's text size: at 200% the page must not
+// scroll sideways. Forcing the root font-size simulates Dynamic Type / browser
+// text size, since every size in index.html is rem-based.
+test.describe("200% text (#144)", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+  for (const [name, hash] of [["Today", ""], ["forecast", "#forecast"], ["storms", "#storms"]]) {
+    test(`${name}: no page-level horizontal scroll at 200% text (#144)`, async ({ page }) => {
+      await loadForecast(page); // fixture outlook so the 7-day grid is populated
+      await page.addStyleTag({ content: "html { font-size: 32px !important; }" });
+      if (hash) {
+        await page.evaluate((h) => { location.hash = h; }, hash);
+        await expect(page.locator(`.card[data-page="${hash.slice(1)}"]`).first()).toBeVisible();
+      }
+      const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
+      expect(w.sw).toBeLessThanOrEqual(w.iw);
+    });
+  }
+
+  // ~300% (AX5): nothing may widen the page or clip inside the hour/day cards.
+  for (const [name, hash] of [["Today", ""], ["forecast", "#forecast"], ["storms", "#storms"]]) {
+    test(`${name}: nothing clips at 300% text (#144)`, async ({ page }) => {
+      await loadForecast(page);
+      await page.addStyleTag({ content: "html { font-size: 48px !important; }" });
+      if (hash) {
+        await page.evaluate((h) => { location.hash = h; }, hash);
+        await expect(page.locator(`.card[data-page="${hash.slice(1)}"]`).first()).toBeVisible();
+      }
+      const r = await page.evaluate(() => ({
+        sw: document.documentElement.scrollWidth, iw: window.innerWidth,
+        clipped: [...document.querySelectorAll(".hr, .day")]
+          .filter((n) => n.getClientRects().length && n.scrollWidth > n.clientWidth)
+          .map((n) => n.className),
+      }));
+      expect(r.sw).toBeLessThanOrEqual(r.iw);
+      expect(r.clipped).toEqual([]);
+    });
+  }
+
+  // At 320px with 300% text a 5.25rem column (252px) is wider than the grid,
+  // and the card's overflow: hidden would cut the forecast off (#144).
+  test("7-day cards stay inside the grid at 320px and 300% text (#144)", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
+    await loadForecast(page);
+    await page.addStyleTag({ content: "html { font-size: 48px !important; }" });
+    await page.evaluate(() => { location.hash = "#forecast"; });
+    await expect(page.locator("#days .day").first()).toBeVisible();
+    const r = await page.evaluate(() => {
+      const grid = document.querySelector("#days").getBoundingClientRect();
+      return [...document.querySelectorAll("#days .day")].map((d) => d.getBoundingClientRect().right - grid.right);
+    });
+    expect(r.length).toBeGreaterThan(0);
+    for (const over of r) expect(over).toBeLessThanOrEqual(0.5);
+  });
+
+  test("7-day grid wraps instead of clipping at 200% text (#144)", async ({ page }) => {
+    await loadForecast(page);
+    await page.addStyleTag({ content: "html { font-size: 32px !important; }" });
+    await page.evaluate(() => { location.hash = "#forecast"; });
+    await expect(page.locator("#days .day").first()).toBeVisible();
+    const r = await page.evaluate(() => {
+      const grid = document.querySelector("#days").getBoundingClientRect();
+      return [...document.querySelectorAll("#days .day")].map((d) => {
+        const b = d.getBoundingClientRect();
+        return { right: b.right, gridRight: grid.right, clipped: d.scrollWidth > d.clientWidth };
+      });
+    });
+    expect(r.length).toBeGreaterThan(0);
+    for (const d of r) {
+      expect(d.right).toBeLessThanOrEqual(d.gridRight + 0.5);
+      expect(d.clipped).toBe(false);
+    }
+  });
+});
+
+test("html font follows the system text size on Apple platforms (#144)", () => {
+  const html = readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
+  // Gated to iOS: ungated, desktop Safari resolves it to the 13pt macOS body and shrinks the page.
+  expect(html).toMatch(/@supports \(font: -apple-system-body\) and \(-webkit-touch-callout: default\)\s*\{\s*html\s*\{\s*font: -apple-system-body;/);
+});
+
+// (#145) accent colour means "tappable": rain chance and the next storm name must not wear it
+for (const theme of ["light", "dark"]) {
+  test(`rain chance text is not link-coloured and keeps AA contrast (${theme}) (#145)`, async ({ page }) => {
+    await loadForecast(page, theme);
+    const link = await page.evaluate(() => getComputedStyle(document.querySelector(".tropical-src a")).color);
+    for (const [sel, hash] of [["#hours .hr .r", "#home"], ["#days .day .rain", "#forecast"]]) {
+      await page.evaluate((h) => { location.hash = h; }, hash);
+      await expect(page.locator(sel).first()).toBeVisible();
+      const color = await page.locator(sel).first().evaluate((e) => getComputedStyle(e).color);
+      expect(color, sel).not.toBe(link);
+      expect(await ratio(page, sel), sel).toBeGreaterThanOrEqual(AA_TEXT);
+    }
+  });
+
+  test(`next storm name uses body text colour, bold, with AA contrast (${theme}) (#145)`, async ({ page }) => {
+    await mockSeason(page);
+    await load(page, theme);
+    await page.evaluate(() => { location.hash = "#storms"; });
+    const chip = page.locator("#season-names .name-chip.next");
+    await expect(chip).toBeVisible();
+    const textColor = await page.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--text)";
+      document.body.appendChild(probe);
+      const c = getComputedStyle(probe).color;
+      probe.remove();
+      return c;
+    });
+    const cs = await chip.evaluate((e) => ({ color: getComputedStyle(e).color, weight: getComputedStyle(e).fontWeight }));
+    expect(cs.color).toBe(textColor);
+    expect(Number(cs.weight)).toBeGreaterThanOrEqual(700);
+    expect(await ratio(page, "#season-names .name-chip.next")).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+}

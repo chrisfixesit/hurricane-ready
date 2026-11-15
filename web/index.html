@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -14,7 +14,7 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Bim Weather" />
 
   <!-- Open Graph / Twitter -->
@@ -70,7 +70,7 @@
       --imminent: #ef4444;  --imminent-soft: rgba(239,68,68,0.16);
       --soft-text: #dbe6f5;
     }
-    /* Light theme — DEFAULT — modelled on the alpha.gov.bb palette:
+    /* Light theme (when chosen, or when the system is light, #143) — modelled on the alpha.gov.bb palette:
        white surfaces, Barbados navy, teal accents, gold highlights. */
     :root[data-theme="light"] {
       --bg: #ffffff;
@@ -97,13 +97,56 @@
     :root[data-theme="light"] .ALL_CLEAR .b-title, :root[data-theme="light"] .chip.ALL_CLEAR, :root[data-theme="light"] .chance.low { color: #15803d; }
     :root[data-theme="light"] .WATCH .b-title, :root[data-theme="light"] .chip.WATCH, :root[data-theme="light"] .uv.moderate, :root[data-theme="light"] .chance.medium { color: #a16207; }
     :root[data-theme="light"] .WARNING .b-title, :root[data-theme="light"] .chip.WARNING, :root[data-theme="light"] .uv.high { color: #9a3412; } /* (#105) darker for 4.5:1 on the warning tint */
+    /* (#140) white text on the light accent #0e7490 is 5.36:1; the dark navy it inherited was ~2.9:1 */
+    :root[data-theme="light"] .alerts-btn, :root[data-theme="light"] .skip-link, :root[data-theme="light"] .hr-update-toast { color: #ffffff; }
     :root[data-theme="light"] .IMMINENT .b-title, :root[data-theme="light"] .chip.IMMINENT, :root[data-theme="light"] .pass-close, :root[data-theme="light"] .chance.high, :root[data-theme="light"] .name-chip.active, :root[data-theme="light"] .emerg-num b { color: #b91c1c; }
     :root[data-theme="light"] .civil-alert .ca-text, :root[data-theme="light"] .civil-alert .ca-arrow { color: #b91c1c; }
     :root[data-theme="light"] .civil-alert .ca-text b { color: #7f1d1d; }
     :root[data-theme="light"] .uv.low, :root[data-theme="light"] .chance.low { color: #14532d; }
     :root[data-theme="light"] .disclaimer { color: #854d0e; }
     :root[data-theme="light"] .offline-note { color: #854d0e; } /* (#102) was dark-theme yellow on near-white */
-    :root[data-theme="light"] .name-chip.next { color: #0369a1; }
+
+    /* (#143) Theme follows the system by default. Before app.js sets data-theme (CSP rules out an inline
+       script), a light-mode system gets the same light tokens and overrides as :root[data-theme="light"].
+       Keep this block in step with the data-theme="light" rules above, and with .attribution and
+       --map-outline below. An explicit data-theme="dark" never matches :not([data-theme]). */
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme]) {
+        --bg: #ffffff;
+        --bg-grad: linear-gradient(180deg, #eef4fb 0%, #ffffff 240px);
+        --card: #ffffff;
+        --card-2: #f4f8fc;
+        --border: #e3eaf4;
+        --text: #0b1f3a;
+        --muted: #51617c;
+        --accent: #0e7490;
+        --accent-soft: rgba(14,116,144,0.10); --accent-line: rgba(14,116,144,0.45);
+        --navy: #0b2e6e; --navy-deep: #07235a; --on-navy: #ffffff; --gold: #ffc726;
+        --nav-bg: rgba(255,255,255,0.92);
+        --heading: #0b2e6e;
+        --hero-bg: linear-gradient(135deg, #e6f3f8 0%, #f7fbfd 72%);
+        --card-shadow: 0 1px 2px rgba(11,31,58,0.05), 0 6px 18px rgba(11,31,58,0.04);
+        --soft-text: #1f3760;
+        --all-clear-soft: rgba(22,163,74,0.12);
+        --watch-soft: rgba(234,179,8,0.18);
+        --warning-soft: rgba(249,115,22,0.14);
+        --imminent-soft: rgba(239,68,68,0.1);
+      }
+      /* Light-mode darker text for the otherwise-bright semantic colours. */
+      :root:not([data-theme]) .ALL_CLEAR .b-title, :root:not([data-theme]) .chip.ALL_CLEAR, :root:not([data-theme]) .chance.low { color: #15803d; }
+      :root:not([data-theme]) .WATCH .b-title, :root:not([data-theme]) .chip.WATCH, :root:not([data-theme]) .uv.moderate, :root:not([data-theme]) .chance.medium { color: #a16207; }
+      :root:not([data-theme]) .WARNING .b-title, :root:not([data-theme]) .chip.WARNING, :root:not([data-theme]) .uv.high { color: #9a3412; } /* (#105) darker for 4.5:1 on the warning tint */
+      /* (#140) white text on the light accent #0e7490 is 5.36:1; the dark navy it inherited was ~2.9:1 */
+      :root:not([data-theme]) .alerts-btn, :root:not([data-theme]) .skip-link, :root:not([data-theme]) .hr-update-toast { color: #ffffff; }
+      :root:not([data-theme]) .IMMINENT .b-title, :root:not([data-theme]) .chip.IMMINENT, :root:not([data-theme]) .pass-close, :root:not([data-theme]) .chance.high, :root:not([data-theme]) .name-chip.active, :root:not([data-theme]) .emerg-num b { color: #b91c1c; }
+      :root:not([data-theme]) .civil-alert .ca-text, :root:not([data-theme]) .civil-alert .ca-arrow { color: #b91c1c; }
+      :root:not([data-theme]) .civil-alert .ca-text b { color: #7f1d1d; }
+      :root:not([data-theme]) .uv.low, :root:not([data-theme]) .chance.low { color: #14532d; }
+      :root:not([data-theme]) .disclaimer { color: #854d0e; }
+      :root:not([data-theme]) .offline-note { color: #854d0e; } /* (#102) was dark-theme yellow on near-white */
+      :root:not([data-theme]) .attribution { color: #5E5E5E; }
+      :root:not([data-theme]) { --map-outline: #ffffff; }
+    }
 
     .settings-wrap { position: relative; }
     .settings-btn { background: rgba(255,255,255,0.04); color: var(--muted); border: 1px solid var(--border); border-radius: 999px; width: 32px; height: 32px; font-size: 1rem; cursor: pointer; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
@@ -134,6 +177,9 @@
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
     }
+    /* (#144) on Apple platforms the root size follows the user's system text size (Dynamic Type); all sizes are rem-based */
+    /* (#144) gated to iOS: ungated, desktop Safari resolves it to the 13pt macOS body */
+    @supports (font: -apple-system-body) and (-webkit-touch-callout: default) { html { font: -apple-system-body; } }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg); background-image: var(--bg-grad); background-attachment: fixed;
@@ -172,6 +218,8 @@
       font-size: 0.72rem; color: var(--muted); border: 1px solid var(--border);
       border-radius: 999px; padding: 0.28rem 0.7rem; white-space: nowrap; background: rgba(255,255,255,0.02);
     }
+    /* (#144) at AX text sizes the header pills may wrap instead of widening the page */
+    header .pill { white-space: normal; max-width: 100%; }
     .pill b { color: var(--text); font-weight: 600; }
     header .pill b { color: var(--on-navy); } /* (#101) the Live: label was navy-on-navy */
 
@@ -179,9 +227,10 @@
     .banner {
       border-radius: 18px; padding: 1.15rem 1.35rem; margin-bottom: 0.9rem;
       display: flex; align-items: center; gap: 1.05rem; border: 1px solid var(--border);
-      position: relative; overflow: hidden;
+      position: relative; overflow: hidden; flex-wrap: wrap; /* (#144) stacks at large text */
     }
     .banner .dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 5px rgba(255,255,255,0.08); }
+    .banner > div:not(.b-storms) { min-width: 0; flex: 1 1 10rem; overflow-wrap: anywhere; } /* (#144) */
     .banner .b-title { font-size: 1.3rem; font-weight: 800; letter-spacing: 0.01em; line-height: 1.2; }
     .banner .b-sub { font-size: 0.9rem; color: var(--muted); margin-top: 0.15rem; }
     .banner .b-storms { margin-left: auto; text-align: right; font-size: 0.85rem; color: var(--muted); }
@@ -213,6 +262,8 @@
     .civil-alert .ca-text { font-size: 0.9rem; color: #fca5a5; flex: 1; line-height: 1.45; }
     .civil-alert .ca-text b { color: #fecaca; }
     .civil-alert .ca-arrow { color: #fca5a5; font-weight: 700; flex-shrink: 0; display: inline-flex; }
+    /* (#144) let long civil-alert text shrink and wrap at large sizes */
+    .civil-alert .ca-text { min-width: 0; overflow-wrap: anywhere; }
 
     /* Section nav: horizontal scroller on phones, sticky vertical sidebar
        rail on wider screens (weather.com-style left nav). */
@@ -303,7 +354,7 @@
     .tile-note { margin-top: 0.45rem; font-size: 0.76rem; color: var(--muted); line-height: 1.5; }
     .tile-note b { color: var(--soft-text); font-weight: 600; }
     .wx-obs { font-size: 0.72rem; color: var(--muted); padding: 0 1.1rem 1.1rem; }
-    .panel-age { font-size: 0.7rem; color: var(--muted); padding: 0 1.1rem 1rem; }
+    .panel-age { font-size: 0.72rem; color: var(--muted); padding: 0 1.1rem 1rem; }
     .flood-note { font-size: 0.88rem; color: var(--soft-text); padding: 0 1.1rem 0.6rem; line-height: 1.5; }
     .flood-note .chance, .arrival-note .chance { margin-right: 0.35rem; }
     .arrival-note { font-size: 0.9rem; color: var(--soft-text); padding: 0.2rem 1.1rem 0.7rem; line-height: 1.5; }
@@ -312,26 +363,26 @@
 
     /* 7-day forecast */
     .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; padding: 0.3rem 1.1rem 1.1rem; }
-    @media (max-width: 720px) { .days { grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); } }
+    @media (max-width: 720px) { .days { grid-template-columns: repeat(auto-fit, minmax(min(5.25rem, 100%), 1fr)); } } /* (#144) min() caps the column at the grid width on narrow screens with large text */
     .day { border: 1px solid var(--border); border-radius: 12px; padding: 0.6rem 0.35rem; text-align: center; background: var(--card-2); }
     .day .dow { font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: none; letter-spacing: 0; }
     .day .ico { font-size: 1.5rem; margin: 0.3rem 0; }
     .day .hi { font-weight: 800; }
     .day .lo { color: var(--muted); }
-    .day .rain { font-size: 0.72rem; color: var(--accent); margin-top: 0.25rem; }
-    .day .th { font-size: 0.7rem; color: var(--muted); }
+    .day .rain { font-size: 0.72rem; color: var(--soft-text); margin-top: 0.25rem; }
+    .day .th { font-size: 0.72rem; color: var(--muted); }
 
     /* Hourly strip */
     .strip-key { font-size: 0.75rem; color: var(--muted); padding: 0 1.1rem 0.45rem; line-height: 1.4; }
     .hist-intro { font-size: 0.75rem; color: var(--muted); padding: 0 1.1rem 0.45rem; line-height: 1.4; margin: 0; } /* (#111) */
     .strip-key b { color: var(--soft-text); font-weight: 600; }
-    .hours { display: flex; gap: 0.5rem; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 0.3rem 1.1rem 1.1rem; }
-    .hr { flex: 0 0 auto; width: 66px; text-align: center; border: 1px solid var(--border); border-radius: 11px; padding: 0.5rem 0.3rem; background: var(--card-2); }
+    .hours { position: relative; /* (#144) contain the absolutely-placed .sr-only labels so they can't widen the page */ display: flex; gap: 0.5rem; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 0.3rem 1.1rem 1.1rem; }
+    .hr { flex: 0 0 auto; min-width: 66px; width: auto; /* (#144) grows with text */ text-align: center; border: 1px solid var(--border); border-radius: 11px; padding: 0.5rem 0.3rem; background: var(--card-2); }
     .hr .t { font-size: 0.72rem; color: var(--muted); }
     .hr .ico { font-size: 1.15rem; margin: 0.2rem 0; }
-    .hr .r { font-size: 0.74rem; color: var(--accent); }
-    .hr .w { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; }
-    .hr .th { font-size: 0.7rem; color: var(--muted); }
+    .hr .r { font-size: 0.74rem; color: var(--soft-text); } /* (#145) accent means tappable; the droplet is the cue */
+    .hr .w { font-size: 0.72rem; color: var(--muted); margin-top: 0.1rem; }
+    .hr .th { font-size: 0.72rem; color: var(--muted); }
     /* Google Maps Platform attribution: sans-serif 400, 12px+, white or
        #5E5E5E only, never translated or wrapped (their policy, not ours). */
     /* Read by screen readers, invisible on screen. */
@@ -354,7 +405,7 @@
     :root { --map-outline: #05080f; }
     :root[data-theme="light"] { --map-outline: #ffffff; }
     .map-label { position: absolute; transform: translate(-50%, 6px); white-space: nowrap; pointer-events: none;
-      font: 700 11px/1 system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text);
+      font: 700 0.75rem/1 system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text);
       text-shadow: -2px 0 0 var(--map-outline), 2px 0 0 var(--map-outline), 0 -2px 0 var(--map-outline), 0 2px 0 var(--map-outline),
         -2px -2px 0 var(--map-outline), 2px -2px 0 var(--map-outline), -2px 2px 0 var(--map-outline), 2px 2px 0 var(--map-outline),
         -1px -1px 0 var(--map-outline), 1px -1px 0 var(--map-outline), -1px 1px 0 var(--map-outline), 1px 1px 0 var(--map-outline); }
@@ -381,7 +432,7 @@
     .sat-frame { position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--card-2); }
     .sat-scene { position: absolute; top: 0; left: 0; width: 100%; transform-origin: 0 0; transform: scale(2.1) translate(-36%, -52%); }
     .sat-scene img { width: 100%; display: block; }
-    .sat-pin { position: absolute; left: 63%; top: 44%; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; font-size: 0.64rem; color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.95); white-space: nowrap; pointer-events: none; z-index: 2; }
+    .sat-pin { position: absolute; left: 63%; top: 44%; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; font-size: 0.75rem; color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.95); white-space: nowrap; pointer-events: none; z-index: 2; }
     .sat-dot { width: 10px; height: 10px; border-radius: 50%; background: #38bdf8; border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(56,189,248,0.6); margin-bottom: 2px; }
     .sat-bar { display: flex; align-items: center; gap: 0.7rem; padding-top: 0.5rem; font-size: 0.78rem; color: var(--muted); flex-wrap: wrap; }
     .sat-bar button { background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 9px; padding: 0.3rem 0.7rem; font-size: 0.8rem; cursor: pointer; font-weight: 600; }
@@ -425,7 +476,7 @@
     .empty .sun { font-size: 1.6rem; display: block; color: var(--gold); margin-bottom: 0.3rem; }
 
     .briefing { padding: 0.2rem 1.1rem 0.5rem; white-space: pre-wrap; line-height: 1.65; font-size: 0.92rem; color: var(--soft-text); }
-    .briefing-source { font-size: 0.7rem; color: var(--muted); padding: 0 1.1rem 1rem; }
+    .briefing-source { font-size: 0.72rem; color: var(--muted); padding: 0 1.1rem 1rem; }
     .replay-label { padding: 0 1.1rem 0.5rem; font-size: 0.8rem; color: var(--accent); font-style: italic; }
 
     /* Legend */
@@ -454,9 +505,9 @@
     .names { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0.3rem 1.1rem 1.1rem; list-style: none; }
     .name-chip { font-size: 0.8rem; padding: 0.22rem 0.6rem; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); background: var(--card-2); }
     .name-chip.used { text-decoration: line-through; } /* no opacity: it dropped the muted text below AA (#108) */
-    .name-tag { margin-left: 0.3rem; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .name-tag { margin-left: 0.3rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; }
     .name-chip.active { background: var(--imminent-soft); border-color: rgba(239,68,68,0.5); color: #fca5a5; font-weight: 700; }
-    .name-chip.next { background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.5); color: var(--accent); font-weight: 700; }
+    .name-chip.next { background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.5); color: var(--text); font-weight: 700; } /* (#145) accent border only; text stays body colour */
 
     /* Get ready */
     .prep { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.8rem; padding: 0.3rem 1.1rem 0.8rem; }
