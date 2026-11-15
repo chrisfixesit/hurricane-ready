@@ -359,6 +359,13 @@ async function tick() {
 
 // ---------- HTTP ----------
 
+// One 404 for unknown paths and for the token-gated /healthz/verbose, so the
+// two can never drift apart and reveal that the endpoint exists (#54).
+function notFound(res) {
+  res.writeHead(404, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ error: "Not found" }));
+}
+
 const server = createServer((req, res) => {
   if (req.method === "GET" && (req.url === "/" || req.url === "/index.html")) {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
@@ -393,8 +400,7 @@ const server = createServer((req, res) => {
   if (req.method === "GET" && req.url === "/healthz/verbose") {
     // Wrong/missing/unconfigured token → the same 404 as any unknown path.
     if (!isHealthTokenValid(req.headers["x-health-token"], config.healthToken)) {
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Not found" }));
+      notFound(res);
       return;
     }
     // `dataAgeSeconds` / `stale` let an external monitor alert on a watcher
@@ -487,8 +493,7 @@ const server = createServer((req, res) => {
       return;
     }
   }
-  res.writeHead(404, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ error: "Not found" }));
+  notFound(res);
 });
 
 const intervalMs = config.replay

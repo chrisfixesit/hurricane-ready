@@ -72,8 +72,9 @@ reviews:
     - path: "src/{url-safety,ratelimit,endpoint,server,etag}.mjs"
       instructions: >
         url-safety guards outbound fetches and webhooks against SSRF; flag anything
-        that loosens it. Keep rate limits on public routes, and /healthz must keep
-        reporting dataAgeSeconds and stale.
+        that loosens it. Keep rate limits on public routes, and /healthz/verbose
+        (behind X-Health-Token) must keep reporting dataAgeSeconds and stale;
+        /healthz stays a bare {status:"ok"} 200.
     - path: "src/**/*.mjs"
       instructions: >
         External feeds (NHC, Open-Meteo, RainViewer, GOES) can be slow, malformed or

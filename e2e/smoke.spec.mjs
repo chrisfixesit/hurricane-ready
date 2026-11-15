@@ -32,6 +32,12 @@ test("dashboard renders every section with real data", async ({ page }) => {
   // answers 404 otherwise so its existence isn't revealed.
   expect(await page.evaluate(async () => (await fetch("/healthz")).json())).toEqual({ status: "ok" });
   expect(await page.evaluate(async () => (await fetch("/healthz/verbose")).status)).toBe(404);
+  // ...and it must be indistinguishable from an unknown path.
+  const sig = (path) => page.evaluate(async (u) => {
+    const r = await fetch(u);
+    return { status: r.status, type: r.headers.get("content-type"), body: await r.text() };
+  }, path);
+  expect(await sig("/healthz/verbose")).toEqual(await sig("/no-such-path"));
 
   // Right now / 7-day / hourly / sea: only assert when the upstream
   // weather + outlook services actually came back.
