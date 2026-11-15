@@ -1186,3 +1186,46 @@ test("manifest theme_color is the navy masthead (#143)", () => {
   const m = JSON.parse(readFileSync(new URL("../web/manifest.webmanifest", import.meta.url), "utf8"));
   expect(m.theme_color).toBe("#0b2e6e");
 });
+
+// (#144) text scales with the user's text size: at 200% the page must not
+// scroll sideways. Forcing the root font-size simulates Dynamic Type / browser
+// text size, since every size in index.html is rem-based.
+test.describe("200% text (#144)", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+  for (const [name, hash] of [["Today", ""], ["forecast", "#forecast"], ["storms", "#storms"]]) {
+    test(`${name}: no page-level horizontal scroll at 200% text (#144)`, async ({ page }) => {
+      await loadForecast(page); // fixture outlook so the 7-day grid is populated
+      await page.addStyleTag({ content: "html { font-size: 32px !important; }" });
+      if (hash) {
+        await page.evaluate((h) => { location.hash = h; }, hash);
+        await expect(page.locator(`.card[data-page="${hash.slice(1)}"]`).first()).toBeVisible();
+      }
+      const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
+      expect(w.sw).toBeLessThanOrEqual(w.iw);
+    });
+  }
+
+  test("7-day grid wraps instead of clipping at 200% text (#144)", async ({ page }) => {
+    await loadForecast(page);
+    await page.addStyleTag({ content: "html { font-size: 32px !important; }" });
+    await page.evaluate(() => { location.hash = "#forecast"; });
+    await expect(page.locator("#days .day").first()).toBeVisible();
+    const r = await page.evaluate(() => {
+      const grid = document.querySelector("#days").getBoundingClientRect();
+      return [...document.querySelectorAll("#days .day")].map((d) => {
+        const b = d.getBoundingClientRect();
+        return { right: b.right, gridRight: grid.right, clipped: d.scrollWidth > d.clientWidth };
+      });
+    });
+    expect(r.length).toBeGreaterThan(0);
+    for (const d of r) {
+      expect(d.right).toBeLessThanOrEqual(d.gridRight + 0.5);
+      expect(d.clipped).toBe(false);
+    }
+  });
+});
+
+test("html font follows the system text size on Apple platforms (#144)", () => {
+  const html = readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
+  expect(html).toMatch(/@supports \(font: -apple-system-body\)\s*\{\s*html\s*\{\s*font: -apple-system-body;/);
+});
