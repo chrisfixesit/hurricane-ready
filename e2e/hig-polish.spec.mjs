@@ -88,7 +88,7 @@ test("(#149) card titles, th and day names are not uppercased; tile labels are",
   expect(await tt(".card-toggle")).toBe("none");
   expect(await tt(".card-body > h3")).toBe("none");
   expect(await tt("th")).toBe("none");
-  await page.waitForSelector("#days .day .dow");
+  await page.waitForSelector("#days .day .dow", { state: "attached" });
   expect(await tt(".day .dow")).toBe("none");
   expect(await tt(".emerg-num small")).toBe("none");
   expect(await tt(".wx-tile .lbl")).toBe("uppercase");

@@ -1031,7 +1031,7 @@
         // every 60 s while the same CAP alert is still active.
         setLiveHtml(
           document.getElementById("civil-text"),
-          `<b>Official emergency alert${n > 1 ? "s" : ""} in effect.</b> Barbados DEM has ${n > 1 ? n + " active alerts" : "an active alert"} — tap for details on CAP.CAP.`
+          `<b>Official emergency alert${n > 1 ? "s" : ""} in effect.</b> Barbados DEM has ${n > 1 ? n + " active alerts" : "an active alert"} — see details on CAP.CAP.`
         );
       } else {
         ca.hidden = true;
@@ -1363,7 +1363,7 @@
       t.id = "hr-update-toast";
       t.className = "hr-update-toast";
       t.type = "button";
-      t.textContent = "Update available — tap to refresh";
+      t.textContent = "Update available. Refresh";
       t.addEventListener("click", () => {
         t.disabled = true;
         t.textContent = "Refreshing…";

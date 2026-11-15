@@ -252,7 +252,7 @@
       appearance: none; -webkit-appearance: none; width: 100%; margin: 0; border: 0; border-radius: 0; background: none;
       font-family: inherit; line-height: inherit; text-align: left; cursor: pointer; user-select: none;
       display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
-      font-size: 0.86rem; text-transform: uppercase; letter-spacing: 0.06em;
+      font-size: 0.95rem; text-transform: none; letter-spacing: 0;
       color: var(--heading); font-weight: 800; padding: 0.95rem 1.1rem;
     }
     .card-toggle .sum-t { display: flex; align-items: center; gap: 0.45rem; }
@@ -263,7 +263,7 @@
     .card-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; border-radius: 16px; }
     @media (prefers-reduced-motion: reduce) { .card-toggle .chev { transition: none; } }
     .card-body > h3 {
-      font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--heading);
+      font-size: 0.84rem; text-transform: none; letter-spacing: 0; color: var(--heading);
       padding: 0.85rem 1.1rem 0.55rem; display: flex; align-items: center; gap: 0.45rem; font-weight: 800;
     }
     .summary { padding: 0.1rem 1.1rem 0.6rem; font-size: 0.98rem; color: var(--soft-text); line-height: 1.6; }
@@ -292,7 +292,7 @@
     .todo-item { display: flex; gap: 0.65rem; align-items: flex-start; border: 1px solid var(--border); border-radius: 12px; padding: 0.7rem 0.8rem; background: var(--card-2); }
     .todo-ico { font-size: 1.6rem; line-height: 1; flex: none; }
     .todo-name { font-weight: 700; color: var(--text); font-size: 0.96rem; }
-    .todo-area { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0.05rem 0 0.28rem; }
+    .todo-area { font-size: 0.74rem; font-weight: 600; color: var(--muted); text-transform: none; letter-spacing: 0; margin: 0.05rem 0 0.28rem; }
     .todo-blurb { font-size: 0.84rem; color: var(--soft-text); line-height: 1.45; }
     .wx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.6rem; padding: 0.3rem 1.1rem 1.1rem; }
     .wx-tile { position: relative; border: 1px solid var(--border); border-radius: 12px; padding: 0.6rem 0.75rem; background: var(--card-2); }
@@ -314,7 +314,7 @@
     .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; padding: 0.3rem 1.1rem 1.1rem; }
     @media (max-width: 720px) { .days { grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); } }
     .day { border: 1px solid var(--border); border-radius: 12px; padding: 0.6rem 0.35rem; text-align: center; background: var(--card-2); }
-    .day .dow { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .day .dow { font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: none; letter-spacing: 0; }
     .day .ico { font-size: 1.5rem; margin: 0.3rem 0; }
     .day .hi { font-weight: 800; }
     .day .lo { color: var(--muted); }
@@ -413,7 +413,7 @@
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 0.86rem; min-width: 520px; }
     th, td { text-align: left; padding: 0.6rem 1.1rem; border-top: 1px solid var(--border); }
-    th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    th { color: var(--muted); font-weight: 700; font-size: 0.78rem; text-transform: none; letter-spacing: 0; }
     td b { font-weight: 700; }
     .chip { display: inline-block; border-radius: 999px; padding: 0.12rem 0.6rem; font-size: 0.74rem; font-weight: 700; }
     .chip.ALL_CLEAR { background: var(--all-clear-soft); color: #4ade80; }
@@ -470,7 +470,7 @@
     .emerg { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem; padding: 0.3rem 1.1rem 0.8rem; }
     .emerg-num { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; border: 1px solid rgba(239,68,68,0.35); background: var(--imminent-soft); border-radius: 12px; padding: 0.7rem 0.5rem; text-decoration: none; }
     .emerg-num b { font-size: 1.35rem; font-weight: 800; color: #fca5a5; letter-spacing: 0.01em; }
-    .emerg-num small { font-size: 0.74rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .emerg-num small { font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: none; letter-spacing: 0; }
     .emerg-num:hover { border-color: #f87171; }
     .shelter-pick { padding: 0.2rem 1.1rem 0.7rem; }
     .shelter-pick select { width: 100%; max-width: 360px; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem 0.7rem; font-size: 0.92rem; }
@@ -694,7 +694,7 @@
           </div>
           <details class="explain">
             <summary>What am I looking at?</summary>
-            <div class="ex-body">The <b>wind forecast</b> for the region. The moving lines show which way the wind blows; the colours show how strong it is, from calm blues to stronger yellows and reds. A storm shows up as a tight swirl. Use the timeline at the bottom to see the next few days, and tap anywhere for the forecast there. Wind speeds are in knots.</div>
+            <div class="ex-body">The <b>wind forecast</b> for the region. The moving lines show which way the wind blows; the colours show how strong it is, from calm blues to stronger yellows and reds. A storm shows up as a tight swirl. Use the timeline at the bottom to see the next few days, and click or press anywhere for the forecast there. Wind speeds are in knots.</div>
           </details>
         </figure>
         </div>
