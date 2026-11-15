@@ -63,6 +63,8 @@ export const config = {
 
   // Replay mode: REPLAY=1 replays fixtures/beryl-2024.json
   replay: process.env.REPLAY === "1",
+  // Token for /healthz/verbose (#54); unset or empty → endpoint answers 404.
+  healthToken: process.env.HEALTH_TOKEN || null,
   replayIntervalSeconds: num(process.env.REPLAY_INTERVAL_SECONDS, 12),
   // Replay dispatch override (#40): replay defaults to NOT firing SES /
   // SNS / webhook / push. Set REPLAY_DISPATCH=1 to allow it (for end-to-end

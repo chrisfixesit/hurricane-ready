@@ -23,7 +23,15 @@ test("dashboard renders every section with real data", async ({ page }) => {
   // depends on it — Open-Meteo is sometimes blocked from CI runners, but
   // that's an external-service flake, not a frontend break. Fetched in
   // page context so the relative URL resolves against BASE.
-  const health = await page.evaluate(async () => (await fetch("/healthz")).json());
+  const health = await page.evaluate(async () => {
+    const s = await (await fetch("/api/status")).json();
+    return { hasWeather: Boolean(s.weather), hasOutlook: Boolean(s.outlook), hasTropical: Boolean(s.tropical) };
+  });
+
+  // Public liveness is bare (#54); the verbose form needs a token and
+  // answers 404 otherwise so its existence isn't revealed.
+  expect(await page.evaluate(async () => (await fetch("/healthz")).json())).toEqual({ status: "ok" });
+  expect(await page.evaluate(async () => (await fetch("/healthz/verbose")).status)).toBe(404);
 
   // Right now / 7-day / hourly / sea: only assert when the upstream
   // weather + outlook services actually came back.

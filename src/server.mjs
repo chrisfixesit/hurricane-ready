@@ -36,6 +36,7 @@ import {
   sendPushToAll,
 } from "./push.mjs";
 import { createRateLimiter } from "./ratelimit.mjs";
+import { isHealthTokenValid, verboseHealth } from "./health.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDir = path.join(here, "../web");
@@ -157,7 +158,7 @@ let lastBriefingKm = null;
 
 // Set when a state.json write fails. While true, level-change dispatch is
 // suppressed so a transient FS hiccup can't make the next boot re-fire the
-// same alert. (Issue #20.) Surfaced on /healthz so operators see it.
+// same alert. (Issue #20.) Surfaced on /healthz/verbose so operators see it.
 let persistenceBroken = false;
 
 // Official-advisory cache: refetch only when the advisory number changes
@@ -383,24 +384,30 @@ const server = createServer((req, res) => {
     return;
   }
   if (req.method === "GET" && req.url === "/healthz") {
-    // 200 = process is alive (liveness). `dataAgeSeconds` / `stale` let an
-    // external monitor alert on a watcher that's up but no longer updating.
-    const ageS = status.updatedAt ? Math.round((Date.now() - new Date(status.updatedAt).getTime()) / 1000) : null;
-    const staleAfter = (config.replay ? 60 : config.pollMinutes * 60) * 3;
+    // Public liveness only (#54). 200 = process is alive; detail is on
+    // /healthz/verbose behind a token.
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-cache" });
-    res.end(JSON.stringify({
-      status: "ok",
-      mode: status.mode,
-      level: status.level,
-      updatedAt: status.updatedAt,
-      dataAgeSeconds: ageS,
-      stale: ageS != null && ageS > staleAfter,
+    res.end(JSON.stringify({ status: "ok" }));
+    return;
+  }
+  if (req.method === "GET" && req.url === "/healthz/verbose") {
+    // Wrong/missing/unconfigured token → the same 404 as any unknown path.
+    if (!isHealthTokenValid(req.headers["x-health-token"], config.healthToken)) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Not found" }));
+      return;
+    }
+    // `dataAgeSeconds` / `stale` let an external monitor alert on a watcher
+    // that's up but no longer updating.
+    const staleAfterSeconds = (config.replay ? 60 : config.pollMinutes * 60) * 3;
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+    res.end(JSON.stringify(verboseHealth({
+      status,
+      now: Date.now(),
       uptimeSeconds: Math.round(process.uptime()),
-      hasWeather: Boolean(status.weather),
-      hasOutlook: Boolean(status.outlook),
-      hasTropical: Boolean(status.tropical),
+      staleAfterSeconds,
       persistenceBroken,
-    }));
+    })));
     return;
   }
 
