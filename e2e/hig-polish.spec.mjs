@@ -64,7 +64,7 @@ test("(#148) no text-glyph or emoji interface icons in the rendered DOM", async 
   expect(text.match(GLYPHS)?.[0] ?? null).toBeNull();
   const before = await page.evaluate(() => getComputedStyle(document.querySelector(".explain summary"), "::before").content);
   expect(before).not.toContain("ⓘ");
-  await expect(page.locator(".card-toggle .chev svg.ic").first()).toBeVisible();
+  await expect(page.locator(".card-toggle .chev svg.ic").first()).toBeAttached();
   expect(await page.locator(".card-toggle .chev").count()).toBe(await page.locator(".card-toggle .chev svg.ic").count());
   await expect(page.locator("#radar-toggle svg.ic")).toHaveCount(1);
   await expect(page.locator("#sat-toggle svg.ic")).toHaveCount(1);

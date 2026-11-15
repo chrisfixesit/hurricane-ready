@@ -212,7 +212,7 @@
     .civil-alert .ca-ico { font-size: 1.3rem; flex-shrink: 0; }
     .civil-alert .ca-text { font-size: 0.9rem; color: #fca5a5; flex: 1; line-height: 1.45; }
     .civil-alert .ca-text b { color: #fecaca; }
-    .civil-alert .ca-arrow { color: #fca5a5; font-weight: 700; flex-shrink: 0; }
+    .civil-alert .ca-arrow { color: #fca5a5; font-weight: 700; flex-shrink: 0; display: inline-flex; }
 
     /* Section nav: horizontal scroller on phones, sticky vertical sidebar
        rail on wider screens (weather.com-style left nav). */
@@ -256,7 +256,7 @@
       color: var(--heading); font-weight: 800; padding: 0.95rem 1.1rem;
     }
     .card-toggle .sum-t { display: flex; align-items: center; gap: 0.45rem; }
-    .card-toggle .chev { flex: none; font-size: 0.8rem; color: var(--accent); transition: transform 0.2s ease; }
+    .card-toggle .chev { flex: none; display: inline-flex; font-size: 0.8rem; color: var(--accent); transition: transform 0.2s ease; }
     .card-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
     .card-toggle[aria-expanded="true"] { border-bottom: 1px solid var(--border); }
     .card-toggle:hover { color: var(--text); background: var(--card-2); }
@@ -399,7 +399,10 @@
     .explain { margin: 0 1.1rem 0.9rem; border: 1px solid var(--border); border-radius: 10px; background: var(--card-2); }
     .explain summary { cursor: pointer; padding: 0.55rem 0.8rem; font-size: 0.82rem; font-weight: 700; color: var(--accent); list-style: none; }
     .explain summary::-webkit-details-marker { display: none; }
-    .explain summary::before { content: "ⓘ "; }
+    .explain summary::before { /* Lucide "info" via mask so it follows currentColor (#148) */
+      content: ""; display: inline-block; width: 1.05em; height: 1.05em; vertical-align: -0.2em; margin-right: 0.35em; background: currentColor;
+      -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4'/%3E%3Cpath d='M12 8h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4'/%3E%3Cpath d='M12 8h.01'/%3E%3C/svg%3E") center / contain no-repeat; }
     .explain[open] summary { border-bottom: 1px solid var(--border); }
     .explain .ex-body { padding: 0.7rem 0.85rem; font-size: 0.85rem; color: var(--soft-text); line-height: 1.6; }
     .explain .ex-body b { color: var(--text); font-weight: 700; }
@@ -419,7 +422,7 @@
     .chip.IMMINENT { background: var(--imminent-soft); color: #fca5a5; }
     .pass-close { color: #fca5a5; }
     .empty { margin: 0; padding: 1.6rem 1.1rem; text-align: center; color: var(--muted); font-size: 0.9rem; }
-    .empty .sun { font-size: 1.6rem; display: block; margin-bottom: 0.3rem; }
+    .empty .sun { font-size: 1.6rem; display: block; color: var(--accent); margin-bottom: 0.3rem; }
 
     .briefing { padding: 0.2rem 1.1rem 0.5rem; white-space: pre-wrap; line-height: 1.65; font-size: 0.92rem; color: var(--soft-text); }
     .briefing-source { font-size: 0.7rem; color: var(--muted); padding: 0 1.1rem 1rem; }
@@ -536,7 +539,7 @@
     <a id="civil-alert" class="civil-alert" href="https://brb-secondary.capews.com/capews/public/active" target="_blank" rel="noopener" aria-live="assertive" aria-atomic="true" hidden>
       <span class="ca-ico" aria-hidden="true" data-icon="siren"></span>
       <span class="ca-text" id="civil-text"></span>
-      <span class="ca-arrow" aria-hidden="true">→</span>
+      <span class="ca-arrow" aria-hidden="true" data-icon="arrow-right"></span>
     </a>
 
     <div id="banner" class="banner ALL_CLEAR" role="status" aria-live="polite" aria-atomic="true">
@@ -579,7 +582,7 @@
 
     <main id="main" tabindex="-1">
       <section class="card" id="now" data-page="home">
-        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="now-card-body"><span class="sum-t"><span class="ico" data-icon="sun"></span> Right now in <span id="now-island">Barbados</span></span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="now-card-body"><span class="sum-t"><span class="ico" data-icon="sun"></span> Right now in <span id="now-island">Barbados</span></span><span class="chev" aria-hidden="true" data-icon="chevron-down"></span></button></h2>
         <div class="card-body" id="now-card-body">
         <p class="summary" id="now-summary">Loading current conditions…</p>
         <div class="wx-now" id="wx-now" hidden>
@@ -598,18 +601,18 @@
       </section>
 
       <section class="card" id="rainwind" data-page="home">
-        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="rainwind-card-body"><span class="sum-t"><span class="ico" data-icon="cloud-rain"></span> Rain &amp; wind — next 24 hours</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="rainwind-card-body"><span class="sum-t"><span class="ico" data-icon="cloud-rain"></span> Rain &amp; wind — next 24 hours</span><span class="chev" aria-hidden="true" data-icon="chevron-down"></span></button></h2>
         <div class="card-body" id="rainwind-card-body">
         <p class="summary" id="rainwind-summary">Loading outlook…</p>
         <p class="flood-note" id="flood-note" role="status" aria-live="polite" hidden></p>
-        <p class="strip-key">Hour by hour — <b>💧 chance of rain</b>, <b>⚡ chance of thunderstorms</b> (when likely) and <b>wind speed</b> (scroll for all 24 hours):</p>
+        <p class="strip-key">Hour by hour — <b><span data-icon="droplet"></span> chance of rain</b>, <b><span data-icon="zap"></span> chance of thunderstorms</b> (when likely) and <b>wind speed</b> (scroll for all 24 hours):</p>
         <div class="hours" id="hours" tabindex="0" role="group" aria-label="Hourly forecast for the next 24 hours — scroll sideways"></div>
         <p class="attribution" id="rain-attribution" translate="no" hidden>Source: Includes weather data from Google.</p>
         </div>
       </section>
 
       <section class="card" id="todo" data-page="home">
-        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="todo-card-body"><span class="sum-t"><span class="ico" data-icon="palmtree"></span> Things to do in Barbados</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="todo-card-body"><span class="sum-t"><span class="ico" data-icon="palmtree"></span> Things to do in Barbados</span><span class="chev" aria-hidden="true" data-icon="chevron-down"></span></button></h2>
         <div class="card-body" id="todo-card-body">
         <p class="summary" id="todo-summary">Loading ideas…</p>
         <div class="todo-grid" id="todo-grid"></div>
@@ -618,10 +621,10 @@
       </section>
 
       <section class="card" id="forecast" data-page="forecast" data-start="closed">
-        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="forecast-card-body"><span class="sum-t"><span class="ico" data-icon="calendar-days"></span> Next 7 days</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="forecast-card-body"><span class="sum-t"><span class="ico" data-icon="calendar-days"></span> Next 7 days</span><span class="chev" aria-hidden="true" data-icon="chevron-down"></span></button></h2>
         <div class="card-body" id="forecast-card-body">
         <p class="summary" id="forecast-summary"></p>
-        <p class="strip-key">Each day shows the high/low temperature and <b>💧 the chance of rain</b>, plus <b>⚡</b> when thunderstorms are possible.</p>
+        <p class="strip-key">Each day shows the high/low temperature and <b><span data-icon="droplet"></span> the chance of rain</b>, plus <b><span data-icon="zap"></span></b> when thunderstorms are possible.</p>
         <div class="days" id="days"><p class="summary">Loading forecast…</p></div>
         <p class="panel-age" id="forecast-age"></p>
         <p class="attribution" id="forecast-attribution" translate="no" hidden>Source: Includes weather data from Google.</p>
@@ -629,7 +632,7 @@
       </section>
 
       <section class="card" id="sea" data-page="sea" data-start="closed">
-        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="sea-card-body"><span class="sum-t"><span class="ico" data-icon="umbrella"></span> Beach, sea &amp; sky</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="sea-card-body"><span class="sum-t"><span class="ico" data-icon="umbrella"></span> Beach, sea &amp; sky</span><span class="chev" aria-hidden="true" data-icon="chevron-down"></span></button></h2>
         <div class="card-body" id="sea-card-body">
         <h3 class="sub"><span class="ico" data-icon="waves"></span> Beach &amp; sea</h3>
         <p class="summary" id="sea-summary">Loading sea conditions…</p>
@@ -644,11 +647,11 @@
       </section>
 
       <section class="card" id="radar" data-page="radar" data-start="closed">
-        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="radar-card-body"><span class="sum-t"><span class="ico" data-icon="radar"></span> Rain radar &amp; satellite</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="radar-card-body"><span class="sum-t"><span class="ico" data-icon="radar"></span> Rain radar &amp; satellite</span><span class="chev" aria-hidden="true" data-icon="chevron-down"></span></button></h2>
         <div class="card-body" id="radar-card-body">
         <div id="map" role="region" aria-label="Live rain radar and active storms near Barbados"></div>
         <div class="radar-bar">
-          <button id="radar-toggle" type="button"><span aria-hidden="true">▶</span> Play radar</button>
+          <button id="radar-toggle" type="button"><span aria-hidden="true" data-icon="play"></span> Play radar</button>
           <span id="radar-time">—</span>
           <span style="margin-left:auto">Rain radar: RainViewer</span>
         </div>
@@ -660,7 +663,7 @@
             <span class="rkey"><span class="rsw" style="background:#f2c200"></span><b>Yellow/orange</b> — heavy rain</span>
             <span class="rkey"><span class="rsw" style="background:#e53935"></span><b>Red</b> — a downpour or thunderstorm</span>
             <span class="rkey"><span class="rsw" style="background:#fff;border:1px solid #888"></span><b>White dot</b> — Barbados (you)</span>
-            Press <b>▶ Play radar</b> to watch which way the rain is moving — that's where it's heading. When a storm is active, the <b>amber cone</b> shows where its centre could track over the next 5 days (the NHC forecast plus its average error) — the storm's winds and rain reach well beyond the thin line.</div>
+            Press <b><span data-icon="play"></span> Play radar</b> to watch which way the rain is moving — that's where it's heading. When a storm is active, the <b>amber cone</b> shows where its centre could track over the next 5 days (the NHC forecast plus its average error) — the storm's winds and rain reach well beyond the thin line.</div>
         </details>
 
         <figure class="sat" id="sat" hidden>
@@ -671,13 +674,13 @@
             <span class="sat-pin" id="sat-pin" aria-hidden="true"><span class="sat-dot"></span>Barbados</span>
           </div>
           <div class="sat-bar">
-            <button id="sat-toggle" type="button"><span aria-hidden="true">▶</span> Play loop</button>
+            <button id="sat-toggle" type="button"><span aria-hidden="true" data-icon="play"></span> Play loop</button>
             <span id="sat-time"></span>
             <span style="margin-left:auto">Satellite: NOAA GOES-East · GeoColor</span>
           </div>
           <details class="explain">
             <summary>What am I looking at?</summary>
-            <div class="ex-body">A <b>live photo from a weather satellite</b> high above the Caribbean, zoomed in on us. White is cloud; bright white blobs are showers or storms building up. The hazy brown tint is <b>Saharan dust</b> blown across from Africa — normal in summer, and it actually helps keep hurricanes away. Barbados is the blue dot. Press <b>▶ Play loop</b> to watch the clouds move.</div>
+            <div class="ex-body">A <b>live photo from a weather satellite</b> high above the Caribbean, zoomed in on us. White is cloud; bright white blobs are showers or storms building up. The hazy brown tint is <b>Saharan dust</b> blown across from Africa — normal in summer, and it actually helps keep hurricanes away. Barbados is the blue dot. Press <b><span data-icon="play"></span> Play loop</b> to watch the clouds move.</div>
           </details>
         </figure>
 
@@ -698,14 +701,14 @@
       </section>
 
       <section class="card" id="storms" data-page="storms" data-start="closed">
-        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="storms-card-body"><span class="sum-t"><span class="ico" data-icon="tornado"></span> Storms &amp; tropics</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="storms-card-body"><span class="sum-t"><span class="ico" data-icon="tornado"></span> Storms &amp; tropics</span><span class="chev" aria-hidden="true" data-icon="chevron-down"></span></button></h2>
         <div class="card-body" id="storms-card-body">
         <p id="replay-label" class="replay-label"></p>
         <div id="briefing" class="briefing">Loading…</div>
         <p id="briefing-source" class="briefing-source"></p>
         <p class="arrival-note" id="arrival-note" role="status" aria-live="polite" hidden></p>
         <!-- Safe default: table visible, empty message hidden. app.js toggles both from the rows; a stale cached app.js (#97) never un-hides, so a hidden table would hide active storms. -->
-        <p class="empty" id="storms-empty" hidden><span class="sun" aria-hidden="true">☀️</span>No active systems — enjoy the sunshine.</p>
+        <p class="empty" id="storms-empty" hidden><span class="sun" aria-hidden="true" data-icon="sun"></span>No active systems — enjoy the sunshine.</p>
         <div class="table-wrap" id="storms-table" tabindex="0" role="group" aria-label="Active storms table — scroll sideways for more columns">
           <table>
             <thead>
@@ -739,7 +742,7 @@
       </section>
 
       <section class="card" id="shelters" data-page="shelters" data-start="closed">
-        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="shelters-card-body"><span class="sum-t"><span class="ico" data-icon="life-buoy"></span> Emergency &amp; shelters</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="shelters-card-body"><span class="sum-t"><span class="ico" data-icon="life-buoy"></span> Emergency &amp; shelters</span><span class="chev" aria-hidden="true" data-icon="chevron-down"></span></button></h2>
         <div class="card-body" id="shelters-card-body">
         <h3 class="sub"><span class="ico" data-icon="phone"></span> Emergency numbers</h3>
         <div class="emerg">
@@ -758,12 +761,12 @@
           </select>
         </div>
         <div class="shelter-list" id="shelter-list"></div>
-        <p class="tropical-src">Source: Barbados DEM Category&nbsp;1 shelter list (2026 booklet). Shelters and openings can change — always confirm with DEM before travelling. <a href="https://dem.gov.bb/public/downloads/SHELTERBOOKLET2026PUBLIC.pdf" target="_blank" rel="noopener">Official shelter booklet (PDF)</a> · ♿ = wheelchair access.</p>
+        <p class="tropical-src">Source: Barbados DEM Category&nbsp;1 shelter list (2026 booklet). Shelters and openings can change — always confirm with DEM before travelling. <a href="https://dem.gov.bb/public/downloads/SHELTERBOOKLET2026PUBLIC.pdf" target="_blank" rel="noopener">Official shelter booklet (PDF)</a> · <span aria-hidden="true" data-icon="accessibility"></span> = wheelchair access.</p>
         </div>
       </section>
 
       <section class="card" id="prep" data-page="prep" data-start="closed">
-        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="prep-card-body"><span class="sum-t"><span class="ico" data-icon="backpack"></span> Get ready</span><span class="chev" aria-hidden="true">▾</span></button></h2>
+        <h2 class="card-h"><button type="button" class="card-toggle" aria-expanded="true" aria-controls="prep-card-body"><span class="sum-t"><span class="ico" data-icon="backpack"></span> Get ready</span><span class="chev" aria-hidden="true" data-icon="chevron-down"></span></button></h2>
         <div class="card-body" id="prep-card-body">
         <p class="summary">Simple steps for hurricane season in Barbados. The season runs <span class="lead">1 June to 30 November</span>.</p>
         <div class="prep">
