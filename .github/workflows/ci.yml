@@ -115,7 +115,7 @@ jobs:
       - name: Frontend smoke test (Playwright)
         run: |
           npm ci --no-audit --no-fund
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
           BASE_URL=http://localhost:8080 npm run test:e2e
 
       - name: Container logs (on failure)
