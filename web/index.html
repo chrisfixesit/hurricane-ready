@@ -147,7 +147,7 @@
     svg.ic { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em; }
     .ico { display: inline-flex; align-items: center; }
     .sum-t .ico, .card-body > h3 .ico { font-size: 1.18em; color: var(--accent); }
-    .nav-ico, .dv-ico, .todo-ico, .adv-ico, .ca-ico, .s-ico { display: inline-flex; align-items: center; justify-content: center; }
+    .nav-ico, .dv-ico, .todo-ico, .ca-ico, .s-ico { display: inline-flex; align-items: center; justify-content: center; }
     .todo-ico { color: var(--accent); }
     section[id] { scroll-margin-top: 70px; }
     .card-toggle { scroll-margin-top: 70px; scroll-margin-bottom: 1rem; } /* focus ring stays clear of the sticky nav and the fold (#104) */
@@ -213,12 +213,6 @@
     .civil-alert .ca-text { font-size: 0.9rem; color: #fca5a5; flex: 1; line-height: 1.45; }
     .civil-alert .ca-text b { color: #fecaca; }
     .civil-alert .ca-arrow { color: #fca5a5; font-weight: 700; flex-shrink: 0; }
-    .advisory-link { display: flex; align-items: center; gap: 0.7rem; text-decoration: none; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 0.6rem 0.9rem; margin-bottom: 0.9rem; }
-    .advisory-link:hover { border-color: var(--accent); }
-    .advisory-link .adv-ico { font-size: 1.1rem; flex-shrink: 0; }
-    .advisory-link .adv-text { font-size: 0.85rem; color: var(--soft-text); flex: 1; line-height: 1.45; }
-    .advisory-link .adv-text b { color: var(--text); }
-    .advisory-link .adv-arrow { color: var(--accent); font-weight: 700; flex-shrink: 0; }
 
     /* Section nav: horizontal scroller on phones, sticky vertical sidebar
        rail on wider screens (weather.com-style left nav). */
@@ -570,11 +564,6 @@
     </div>
     <div id="offline-note" class="offline-note" hidden><span class="ico" data-icon="triangle-alert"></span> You're offline — showing the last saved update.</div>
 
-    <a class="advisory-link" href="https://www.barbadosweather.org" target="_blank" rel="noopener">
-      <span class="adv-ico" aria-hidden="true" data-icon="megaphone"></span>
-      <span class="adv-text">Beyond hurricanes, <b>Barbados Met Services</b> issues local advisories — small-craft, heavy-rain/flood, dust. Tap to check what's in effect now.</span>
-      <span class="adv-arrow" aria-hidden="true">→</span>
-    </a>
     </section>
 
     <div class="layout">
@@ -815,6 +804,8 @@
         <div class="sources">
           <a class="source" href="https://www.barbadosweather.org" target="_blank" rel="noopener">
             <span class="s-ico" aria-hidden="true" data-icon="landmark"></span><span><b>Barbados Met Services</b><small>Official forecasts &amp; warnings</small></span></a>
+          <a class="source" href="https://www.barbadosweather.org" target="_blank" rel="noopener">
+            <span class="s-ico" aria-hidden="true" data-icon="megaphone"></span><span><b>Local advisories</b><small>Small-craft, heavy-rain/flood, dust — BMS</small></span></a>
           <a class="source" href="http://www.dem.gov.bb" target="_blank" rel="noopener">
             <span class="s-ico" aria-hidden="true" data-icon="siren"></span><span><b>Dept. of Emergency Management</b><small>Shelters &amp; preparedness</small></span></a>
           <a class="source" href="https://brb-secondary.capews.com/capews/public/active" target="_blank" rel="noopener">
