@@ -7,7 +7,13 @@ const BASE = process.env.BASE_URL || "http://localhost:8080";
 // browser test stubs /api/vapidPublicKey). Run: BASE_URL=... npx playwright test push
 // Endpoints use fcm.googleapis.com, on the server's default allowlist; each is
 // unsubscribed at the end, so the server's store is left as found.
-test.describe.configure({ mode: "serial" }); // subscribe is rate-limited to 5/min/IP; keep calls few
+test.describe.configure({ mode: "serial" });
+// Subscribe is rate-limited to 5/min per client IP and each attempt makes 3, so a
+// CI retry would hit 429. The server keys the limit on X-Forwarded-For (as behind
+// CloudFront), so each attempt gets its own test-net address. A retry restarts
+// the worker, which re-evaluates this module and draws a new one.
+const octet = () => Math.floor(Math.random() * 254) + 1;
+test.use({ extraHTTPHeaders: { "X-Forwarded-For": `198.18.${octet()}.${octet()}` } });
 test.skip(({ browserName }) => browserName !== "chromium", "PushManager stub + notification grant are Chromium-only");
 
 const ep = () => `https://fcm.googleapis.com/fcm/send/e2e-${Date.now()}-${Math.random().toString(36).slice(2)}`;

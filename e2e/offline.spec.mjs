@@ -21,10 +21,19 @@ test("(#57) dashboard shell and last status render offline from the SW cache", a
   await page.reload({ waitUntil: "load" });
   await expect(page.locator("#banner-title")).not.toHaveText("Checking the skies…", { timeout: 15000 });
   expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+  // The SW answers before its cache write lands; wait for the saved copy, then
+  // remember what it says so the offline render can be checked against it.
+  await page.waitForFunction(async () => Boolean(await caches.match("/api/status")));
+  const saved = await page.evaluate(async () => (await caches.match("/api/status")).json());
+  await expect(page.locator("#banner")).toHaveClass(new RegExp(`\\b${saved.level}\\b`));
+  const briefing = await page.locator("#briefing").textContent();
 
   await context.setOffline(true);
   await page.reload({ waitUntil: "load" });
   await expect(page.locator(".section-nav")).toBeVisible();
   await expect(page.locator("#banner-title")).not.toHaveText("Checking the skies…", { timeout: 15000 });
+  // The last online status, not just any cached one, renders offline.
+  await expect(page.locator("#banner")).toHaveClass(new RegExp(`\\b${saved.level}\\b`));
+  await expect(page.locator("#briefing")).toHaveText(briefing);
   await expect(page.locator("#offline-note")).toBeVisible();
 });
